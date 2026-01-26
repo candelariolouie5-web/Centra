@@ -1,107 +1,150 @@
 import Image from "next/image";
 import Footer from "../../components/Footer";
-import Link from "next/link";
-
-import { FaUserMd, FaLaptopMedical, FaShieldAlt } from "react-icons/fa";
 
 export default function AboutPage() {
   return (
     <>
-      {/* HERO */}
-      <section className="relative w-full h-[400] bg-linear-to-r from-blue-600 to-purple-600 flex items-center justify-center">
-        {/* Optional background image */}
-        {/* <Image src="/images/clinic-hero.jpg" alt="Clinic" fill className="object-cover opacity-30" /> */}
-        <h1 className="text-4xl md:text-5xl font-bold text-white text-center drop-shadow-lg">
-          About Centra Clinic PH
-        </h1>
-      </section>
+      <main className="bg-white text-gray-900">
+        {/* HERO SECTION */}
+        <section className="max-w-7xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
+          {/* LEFT */}
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
+              Compassionate care, centered around you
+            </h1>
 
-      {/* CONTENT */}
-      <div className="max-w-6xl mx-auto px-6 py-20 space-y-24">
-
-        {/* INTRO */}
-        <div className="text-center max-w-3xl mx-auto space-y-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800">
-            Your Partner in Modern Healthcare
-          </h2>
-          <p className="text-gray-700 text-lg leading-relaxed">
-            Centra Clinic PH is a patient-centered healthcare platform designed
-            to make medical consultations accessible, efficient, and reliable.
-            By combining trusted medical professionals with modern technology,
-            we aim to improve healthcare experiences for every Filipino.
-          </p>
-        </div>
-
-        {/* MISSION & VISION */}
-        <div className="grid md:grid-cols-2 gap-12">
-          <div className="p-10 rounded-3xl bg-linear-to-tr from-blue-50 to-blue-100 hover:shadow-xl transition">
-            <h3 className="text-2xl font-semibold mb-4 text-blue-700">Our Mission</h3>
-            <p className="text-gray-700 leading-relaxed">
-              To provide accessible and high-quality healthcare services through
-              innovative digital solutions that connect patients with trusted
-              medical professionals anytime, anywhere.
+            <p className="text-gray-600 max-w-xl">
+              Centra Clinic PH is committed to delivering accessible,
+              compassionate, and high-quality healthcare. We bring patients and
+              medical professionals together through a modern clinic experience
+              built on trust, efficiency, and genuine care.
             </p>
-          </div>
-          <div className="p-10 rounded-3xl bg-linear-to-tr from-purple-50 to-purple-100 hover:shadow-xl transition">
-            <h3 className="text-2xl font-semibold mb-4 text-purple-700">Our Vision</h3>
-            <p className="text-gray-700 leading-relaxed">
-              To become a leading digital healthcare platform in the Philippines,
-              empowering communities with reliable medical care and technology-
-              driven health solutions.
-            </p>
-          </div>
-        </div>
 
-        {/* WHY CHOOSE US */}
-        <div>
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">
-            Why Choose Centra Clinic PH?
-          </h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
-            <div className="flex flex-col items-center p-8 rounded-2xl bg-white border hover:shadow-xl transition">
-              <FaUserMd className="text-blue-600 text-5xl mb-4" />
-              <h4 className="font-semibold text-lg mb-2 text-center">Licensed Professionals</h4>
-              <p className="text-gray-600 text-center text-sm">
-                Consult with verified and experienced healthcare providers you can trust.
-              </p>
-            </div>
-
-            <div className="flex flex-col items-center p-8 rounded-2xl bg-white border hover:shadow-xl transition">
-              <FaLaptopMedical className="text-purple-600 text-5xl mb-4" />
-              <h4 className="font-semibold text-lg mb-2 text-center">Easy Online Consultations</h4>
-              <p className="text-gray-600 text-center text-sm">
-                Book appointments and receive medical advice from the comfort of your home.
-              </p>
-            </div>
-
-            <div className="flex flex-col items-center p-8 rounded-2xl bg-white border hover:shadow-xl transition">
-              <FaShieldAlt className="text-indigo-600 text-5xl mb-4" />
-              <h4 className="font-semibold text-lg mb-2 text-center">Secure & Confidential</h4>
-              <p className="text-gray-600 text-center text-sm">
-                Your medical records and personal data are protected with industry-standard security.
+            {/* MISSION */}
+            <div className="mt-16">
+              <h2 className="text-2xl font-semibold mb-4">Our mission</h2>
+              <p className="text-gray-600 max-w-xl">
+                Our mission is to improve patient outcomes by providing reliable
+                medical services, innovative healthcare solutions, and a
+                supportive environment where every individual feels heard,
+                respected, and cared for.
               </p>
             </div>
           </div>
-        </div>
 
-        {/* CLOSING + CTA */}
-        <div className="text-center max-w-2xl mx-auto space-y-4">
-          <h2 className="text-3xl font-bold text-gray-800">Healthcare Made Simple</h2>
-          <p className="text-gray-700 leading-relaxed">
-            At Centra Clinic PH, we believe healthcare should be accessible,
-            reliable, and patient-focused. Our platform bridges the gap between
-            patients and healthcare providers—bringing quality care closer to you.
+          {/* RIGHT IMAGES */}
+          <div className="relative h-[420px]">
+            <Image
+              src="/e.jpg"
+              alt="ENT consultation at Centra Clinic PH"
+              width={260}
+              height={360}
+              className="absolute right-0 top-0 rounded-xl shadow-lg object-cover"
+            />
+            <Image
+              src="/a.jpg"
+              alt="Patient care experience"
+              width={240}
+              height={300}
+              className="absolute right-40 top-24 rounded-xl shadow-lg object-cover"
+            />
+            <Image
+              src="/s.jpg"
+              alt="Modern clinic facility"
+              width={220}
+              height={260}
+              className="absolute right-16 bottom-0 rounded-xl shadow-lg object-cover"
+            />
+          </div>
+        </section>
+
+        {/* STATS */}
+        <section className="max-w-7xl mx-auto px-6 pb-24 grid md:grid-cols-3 gap-12">
+          <Stat number="44,000+" label="Patients served nationwide" />
+          <Stat number="120+" label="Healthcare professionals partnered" />
+          <Stat number="10+ years" label="Of trusted medical service" />
+        </section>
+
+        {/* VALUES IMAGE */}
+        <section className="relative h-[420px]">
+          <Image
+            src="/sample.avif"
+            alt="Centra Clinic PH team values"
+            fill
+            className="object-cover"
+          />
+        </section>
+
+        {/* VALUES CONTENT */}
+        <section className="max-w-7xl mx-auto px-6 py-24">
+          <h2 className="text-3xl font-bold mb-4">Our values</h2>
+          <p className="text-gray-600 max-w-2xl mb-16">
+            At Centra Clinic PH, our values guide every consultation, diagnosis,
+            and interaction. These principles define how we care for our patients
+            and support our healthcare professionals.
           </p>
-          <Link
-            href="/appointment"
-            className="inline-block mt-4 px-10 py-4 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-full font-semibold text-lg hover:scale-105 transition transform shadow-lg"
-          >
-            Book an Appointment
-          </Link>
-        </div>
-      </div>
+
+          <div className="grid md:grid-cols-3 gap-12">
+            <Value title="Be world-class">
+              We uphold the highest medical standards by continuously improving
+              our clinical practices, facilities, and quality of patient care.
+            </Value>
+
+            <Value title="Share everything you know">
+              We believe informed patients make better decisions. Clear
+              communication and patient education are central to our care.
+            </Value>
+
+            <Value title="Always learning">
+              Our team stays updated with the latest medical knowledge,
+              technologies, and best practices to provide safe and effective
+              treatment.
+            </Value>
+
+            <Value title="Be supportive">
+              We foster a welcoming and respectful environment where patients and
+              staff feel supported at every step of the healthcare journey.
+            </Value>
+
+            <Value title="Take responsibility">
+              We take full responsibility for our actions, decisions, and
+              outcomes to maintain patient safety, trust, and accountability.
+            </Value>
+
+            <Value title="Enjoy downtime">
+              We value balance and well-being, knowing that healthy and rested
+              healthcare professionals provide better care to patients.
+            </Value>
+          </div>
+        </section>
+      </main>
 
       <Footer />
     </>
+  );
+}
+
+/* COMPONENTS */
+function Stat({ number, label }: { number: string; label: string }) {
+  return (
+    <div>
+      <h3 className="text-3xl font-bold mb-1">{number}</h3>
+      <p className="text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function Value({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h4 className="font-semibold mb-2">{title}</h4>
+      <p className="text-gray-600">{children}</p>
+    </div>
   );
 }

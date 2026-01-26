@@ -1,0 +1,11 @@
+Model Information:
+* title:	Anatomi Hidung (Nose Anatomy)
+* source:	https://sketchfab.com/3d-models/anatomi-hidung-nose-anatomy-8451417e97bd49e7ba90def247715fe2
+* author:	Umar Faruq (https://sketchfab.com/masumarul19)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Anatomi Hidung (Nose Anatomy)" (https://sketchfab.com/3d-models/anatomi-hidung-nose-anatomy-8451417e97bd49e7ba90def247715fe2) by Umar Faruq (https://sketchfab.com/masumarul19) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
