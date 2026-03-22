@@ -3,7 +3,15 @@ import { useState } from "react";
 import { FieldBlock } from "./UIHelpers";
 
 /* ----------------------- ADD PATIENT MODAL ----------------------- */
-const AddPatientModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+const AddPatientModal = ({ 
+  open, 
+  onClose,
+  onSuccess
+}: { 
+  open: boolean; 
+  onClose: () => void;
+  onSuccess?: () => void;
+}) => {
   const [tab, setTab] = useState("personal");
   const [formData, setFormData] = useState({
     fullName: "",
@@ -24,6 +32,8 @@ const AddPatientModal = ({ open, onClose }: { open: boolean; onClose: () => void
     consentChecked: false,
   });
 
+  const [loading, setLoading] = useState(false);
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -43,23 +53,44 @@ const AddPatientModal = ({ open, onClose }: { open: boolean; onClose: () => void
     return errors;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       alert("Please fix the following errors:\n" + Object.values(errors).join("\n"));
       return;
     }
 
-    // Here you would typically send the data to an API or parent component
-    console.log('Saving patient data:', formData);
-    // Reset form or close modal
-    onClose();
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/patients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        console.log('Patient saved successfully');
+        if (onSuccess) onSuccess();
+        onClose();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to save patient");
+      }
+    } catch (err) {
+      console.error("Error saving patient:", err);
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="w-[820] max-h-[90vh] bg-[#111318] text-gray-200 rounded-2xl border border-gray-700 shadow-2xl overflow-y-auto">
+      <div className="w-[820px] max-h-[90vh] bg-[#111318] text-gray-200 rounded-2xl border border-gray-700 shadow-2xl overflow-y-auto">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Add New Patient</h2>
@@ -142,8 +173,12 @@ const AddPatientModal = ({ open, onClose }: { open: boolean; onClose: () => void
           >
             Cancel
           </button>
-          <button className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition">
-            Save Patient
+          <button 
+            onClick={handleSave}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save Patient"}
           </button>
         </div>
       </div>
@@ -152,3 +187,4 @@ const AddPatientModal = ({ open, onClose }: { open: boolean; onClose: () => void
 };
 
 export default AddPatientModal;
+

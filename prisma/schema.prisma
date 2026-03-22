@@ -6,7 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -20,35 +19,35 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade) // lowercase
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
-
 model Session {
-  id           String   @id
+  id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade) // lowercase
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime
-  Account       Account[]
-  Session       Session[]
-  appointments  Appointment[]
+  id               String           @id @default(cuid())
+  name             String?
+  email            String?          @unique
+  emailVerified    DateTime?
+  image            String?
+  role             Role             @default(USER)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+  password         String?
+  isActive         Boolean          @default(true)
+  Account          Account[]
+  appointments     Appointment[]
+  medicalHistories MedicalHistory[]
+  Session          Session[]
+  soapNotes        SoapNote[]
 }
 
 model VerificationToken {
@@ -57,19 +56,6 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-enum Role {
-  USER
-  ADMIN
-}
-
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  ACCEPTED
-  REJECTED
 }
 
 model Appointment {
@@ -83,6 +69,71 @@ model Appointment {
   status          AppointmentStatus @default(PENDING)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  age             Int?
+  contactNumber   String?
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+model SoapNote {
+  id                String         @id @default(cuid())
+  patientId         String
+  chiefComplaint    String?
+  historyOfIllness  String?
+  remarks           String?
+  diagnosis         String?
+  plan              String?
+  followUp          String?
+  prescriptions     Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  prescriptionsList Prescription[]
+  patient           User           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Prescription {
+  id           String   @id @default(cuid())
+  soapNoteId   String
+  drug         String
+  dose         String
+  frequency    String
+  duration     String
+  instructions String?
+  createdAt    DateTime @default(now())
+  soapNote     SoapNote @relation(fields: [soapNoteId], references: [id], onDelete: Cascade)
+}
+
+model MedicalHistory {
+  id         String   @id @default(cuid())
+  patientId  String
+  type       String
+  resultDate DateTime
+  lab        String?
+  remarks    String
+  photos     String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  patient    User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model BlockedDate {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+  DOCTOR
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  ACCEPTED
+  REJECTED
 }

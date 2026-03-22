@@ -49,7 +49,6 @@ const PrescriptionModal = ({
   const [filtered, setFiltered] = useState<DrugData[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Populate form when editing
   useEffect(() => {
     if (defaultValues) {
       setDrug(defaultValues.drug);
@@ -66,16 +65,17 @@ const PrescriptionModal = ({
     }
   }, [defaultValues, open]);
 
-  // Fuzzy search
   useEffect(() => {
     if (!drug.trim()) {
       setFiltered([]);
       setShowSuggestions(false);
       return;
     }
+
     const matches = DRUG_LIST.filter((d) =>
       d.name.toLowerCase().includes(drug.toLowerCase())
     );
+
     setFiltered(matches);
     setShowSuggestions(matches.length > 0);
   }, [drug]);
@@ -83,6 +83,7 @@ const PrescriptionModal = ({
   const handleSelect = (drugName: string) => {
     const selected = DRUG_LIST.find((d) => d.name === drugName);
     if (!selected) return;
+
     setDrug(selected.name);
     setDose(selected.dose);
     setFrequency(selected.frequency);
@@ -93,15 +94,11 @@ const PrescriptionModal = ({
   const handleSave = () => {
     if (!drug.trim()) return;
     onSave({ drug, dose, frequency, duration, instructions });
-    if (!defaultValues) {
-      setDrug(""); setDose(""); setFrequency(""); setDuration(""); setInstructions("");
-    }
     setShowSuggestions(false);
   };
 
   if (!open) return null;
 
-  // Group suggestions by category
   const groupedSuggestions: Record<string, DrugData[]> = {};
   filtered.forEach((d) => {
     if (!groupedSuggestions[d.category]) groupedSuggestions[d.category] = [];
@@ -109,18 +106,23 @@ const PrescriptionModal = ({
   });
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-[600px] max-h-[90vh] bg-[#111318] text-gray-200 rounded-2xl border border-gray-700 shadow-2xl overflow-y-auto relative">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="relative w-full max-w-[620px] max-h-[90vh] bg-white text-gray-900 rounded-2xl shadow-2xl border overflow-hidden">
+
+        {/* HEADER */}
+        <div className="px-6 py-4 border-b flex justify-between items-center">
+          <h2 className="text-lg font-semibold">
             {defaultValues ? "Edit Prescription" : "Add Prescription"}
           </h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#1b1f27] text-gray-400 hover:text-gray-200">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2">
+            ✕
+          </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-6 space-y-6 relative">
+        {/* BODY */}
+        <div className="px-6 py-6 space-y-5 relative">
+
+          {/* Drug Search */}
           <div className="relative">
             <FieldBlock
               label="Drug Name"
@@ -128,16 +130,19 @@ const PrescriptionModal = ({
               value={drug}
               onChange={(e) => setDrug(e.target.value)}
             />
+
             {showSuggestions && (
-              <div className="absolute top-20 left-0 right-0 bg-[#1b1f27] border border-gray-600 rounded-md shadow-md max-h-60 overflow-y-auto z-50">
+              <div className="absolute top-[5.25rem] left-0 right-0 bg-white border rounded-xl shadow-lg max-h-64 overflow-y-auto z-50">
                 {Object.entries(groupedSuggestions).map(([cat, drugs]) => (
-                  <div key={cat} className="py-1">
-                    <div className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase">{cat}</div>
-                    {drugs.map((d, idx) => (
+                  <div key={cat}>
+                    <div className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase">
+                      {cat}
+                    </div>
+                    {drugs.map((d) => (
                       <div
-                        key={idx}
+                        key={d.name}
                         onClick={() => handleSelect(d.name)}
-                        className="px-4 py-2 cursor-pointer hover:bg-gray-700"
+                        className="px-4 py-2 text-sm cursor-pointer hover:bg-violet-50 transition"
                       >
                         {d.name}
                       </div>
@@ -148,19 +153,37 @@ const PrescriptionModal = ({
             )}
           </div>
 
-          <FieldBlock label="Dose" placeholder="e.g., 500mg, 10ml" value={dose} onChange={(e) => setDose(e.target.value)} />
-          <FieldBlock label="Frequency" placeholder="e.g., twice daily, every 8 hours" value={frequency} onChange={(e) => setFrequency(e.target.value)} />
-          <FieldBlock label="Duration" placeholder="e.g., 7 days, 2 weeks" value={duration} onChange={(e) => setDuration(e.target.value)} />
-          <FieldBlock label="Instructions" placeholder="Special instructions (optional)" value={instructions} onChange={(e) => setInstructions(e.target.value)} type="textarea" />
+          <div className="grid grid-cols-2 gap-4">
+            <FieldBlock label="Dose" value={dose} onChange={(e) => setDose(e.target.value)} />
+            <FieldBlock label="Frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)} />
+            <FieldBlock label="Duration" value={duration} onChange={(e) => setDuration(e.target.value)} />
+          </div>
+
+          <FieldBlock
+            label="Instructions"
+            type="textarea"
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-700 bg-[#0f1115] flex justify-end gap-2 sticky bottom-0">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-[#1b1f27]">Cancel</button>
-          <button onClick={handleSave} disabled={!drug.trim()} className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">
+        {/* FOOTER */}
+        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!drug.trim()}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
+          >
             {defaultValues ? "Save Changes" : "Add Prescription"}
           </button>
         </div>
+
       </div>
     </div>
   );

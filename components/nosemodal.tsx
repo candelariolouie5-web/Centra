@@ -2,32 +2,38 @@
  
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import * as THREE from "three";
  
 function NoseModel() {
   const { scene } = useGLTF(
-    "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/scene.gltf"
+    "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/Nose.glb"
   );
+ 
+  useEffect(() => {
+    // Auto center the model
+    const box = new THREE.Box3().setFromObject(scene);
+    const center = box.getCenter(new THREE.Vector3());
+    scene.position.sub(center);
+  }, [scene]);
  
   return (
     <primitive
       object={scene}
-      scale={1.5}
-      position={[0, -0.4, 0]}
+      scale={0.01}   // 🔥 changed from 1.5 → 0.01
       rotation={[0, Math.PI, 0]}
     />
   );
 }
  
-// Preload for performance
 useGLTF.preload(
-  "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/scene.gltf"
+  "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/Nose.glb"
 );
  
 export default function NoseViewer() {
   return (
-    <div className="w-full h-[400] bg-gray-900 rounded-lg">
-      <Canvas camera={{ position: [0, 0, 3], fov: 45 }}>
+    <div className="w-full h-[400px] bg-gray-900 rounded-lg">
+      <Canvas camera={{ position: [0, 0, 4], fov: 45 }}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <directionalLight position={[-5, 5, -5]} intensity={0.5} />
@@ -35,8 +41,8 @@ export default function NoseViewer() {
         <OrbitControls
           enableZoom
           enablePan
-          minDistance={1.5}
-          maxDistance={6}
+          minDistance={2}
+          maxDistance={10}
         />
  
         <Suspense fallback={null}>

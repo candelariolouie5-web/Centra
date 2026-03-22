@@ -7,36 +7,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 
 export default function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // 🔐 Credentials Login
-  const handleManualLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Invalid email or password");
-      } else {
-        window.location.href = "/";
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 🔵 Google Login
   const handleGoogleSignIn = async () => {
@@ -68,51 +40,6 @@ export default function LoginForm() {
         {error && (
           <p className="mb-4 text-center text-sm text-red-500">{error}</p>
         )}
-
-        <form onSubmit={handleManualLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-900">
-              Email address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="mt-2 block w-full rounded-md px-3 py-1.5 outline outline-gray-300 focus:outline-indigo-600"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-900">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="mt-2 block w-full rounded-md px-3 py-1.5 outline outline-gray-300 focus:outline-indigo-600"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-2 text-gray-500">or</span>
-          </div>
-        </div>
 
         <button
           onClick={handleGoogleSignIn}

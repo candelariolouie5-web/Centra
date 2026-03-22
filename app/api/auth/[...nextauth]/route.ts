@@ -7,18 +7,30 @@ import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-
+  secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/login",
+  },
   session: {
     strategy: "jwt",
+    maxAge: 24 * 60 * 60,
+    updateAge: 60 * 60,
   },
-
+  cookies: {
+    sessionToken: {
+      name: "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
     CredentialsProvider({
-      name: "credentials",
+      id: "user-credentials",
+      name: "user-credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -29,15 +41,30 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          select: { id: true, email: true, name: true, password: true },
+          where: { email: credentials.email as string },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            password: true,
+            role: true,
+            isActive: true,
+          },
         });
 
-        if (!user || !user.password) {
+        if (
+          !user ||
+          !user.isActive ||
+          !user.password ||
+          user.role !== "USER"
+        ) {
           return null;
         }
 
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        );
 
         if (!isPasswordValid) {
           return null;
@@ -45,98 +72,197 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          email: user.email,
           name: user.name,
+          email: user.email,
+          role: user.role,
+        };
+      },
+    }),
+
+  GoogleProvider({
+  clientId: process.env.GOOGLE_CLIENT_ID!,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+  allowDangerousEmailAccountLinking: true,
+}),
+
+    CredentialsProvider({
+      id: "admin-credentials",
+      name: "admin-credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email as string },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            password: true,
+            role: true,
+            isActive: true,
+          },
+        });
+
+        if (
+          !user ||
+          !user.isActive ||
+          !user.password ||
+          user.role !== "ADMIN"
+        ) {
+          return null;
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        };
+      },
+    }),
+
+    CredentialsProvider({
+      id: "doctor-credentials",
+      name: "doctor-credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email as string },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            password: true,
+            role: true,
+            isActive: true,
+          },
+        });
+
+        if (
+          !user ||
+          !user.isActive ||
+          !user.password ||
+          user.role !== "DOCTOR"
+        ) {
+          return null;
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
         };
       },
     }),
   ],
-
   callbacks: {
-    // Runs after sign in but before session creation
-    async signIn({ user, account, profile }) {
-      console.log("User signed in:", user);
-
+async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // For Google OAuth, check if user exists and link account
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email! },
+          select: { role: true, isActive: true },
         });
 
-        if (existingUser) {
-          // Link the Google account to existing user
-          await prisma.account.upsert({
-            where: {
-              provider_providerAccountId: {
-                provider: "google",
-                providerAccountId: account.providerAccountId,
-              },
-            },
-            update: {
-              userId: existingUser.id,
-            },
-            create: {
-              id: undefined,
-              userId: existingUser.id,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: account.access_token,
-              expires_at: account.expires_at,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
-              session_state: account.session_state,
-            },
-          });
-        } else {
-          // Create new user for Google OAuth
-          const newUser = await prisma.user.create({
-            data: {
-              email: user.email!,
-              name: user.name,
-              image: user.image,
-              updatedAt: new Date(),
-            },
-          });
+        if (existingUser?.role === "ADMIN" || existingUser?.role === "DOCTOR") {
+          return false;
+        }
 
-          // Link the Google account to the new user
-          await prisma.account.create({
-            data: {
-              userId: newUser.id,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: account.access_token,
-              expires_at: account.expires_at,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
-              session_state: account.session_state,
-            },
-          });
+        if (existingUser && existingUser.isActive === false) {
+          return false;
         }
       }
 
-      // Allow sign in for all users
       return true;
     },
 
-    // Runs whenever a JWT is created/updated
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
+
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true, email: true },
+        });
+
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.email = dbUser.email ?? undefined;
+        }
       }
-      if (account) token.accessToken = account.access_token;
+
+      if (account) {
+        token.accessToken = account.access_token;
+        token.provider = account.provider;
+      } else if (!token.provider) {
+        token.provider = "credentials";
+      }
+
       return token;
     },
 
-    // Runs whenever a session is checked/created
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string | undefined;
+      if (!token) return session;
+
+      let userEmail = "";
+
       if (token.id) {
-        session.user.id = token.id as string;
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { email: true },
+        });
+
+        userEmail = dbUser?.email || "";
       }
+
+      if (token.id) {
+        session.user = {
+          ...session.user,
+          id: token.id as string,
+          email: userEmail,
+          role: token.role as "USER" | "ADMIN" | "DOCTOR",
+        };
+      }
+
+      if (token.provider) {
+        session.provider = token.provider as string;
+      }
+
+      if (token.accessToken) {
+        session.accessToken = token.accessToken as string;
+      }
+
       return session;
     },
   },

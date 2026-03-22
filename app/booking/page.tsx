@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import UserAppointmentCalendar from "@/components/UserAppointmentCalendar";
 
 export default function BookPage() {
   const router = useRouter();
@@ -20,9 +21,8 @@ export default function BookPage() {
   if (!session) return null; // render nothing if not logged in
 
   return (
-    <div className="text-white p-6">
-      <h1 className="text-2xl font-semibold mb-4">Book an Appointment</h1>
-      <p>Your booking UI goes here...</p>
+    <div className="min-h-screen bg-[#0a0b0f] p-6">
+      <UserAppointmentCalendar />
     </div>
   );
 }

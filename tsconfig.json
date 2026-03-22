@@ -32,7 +32,7 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "components/AppointmentOverview.jsx",
-    "components/AdminLogin.JS"
+    "components/AdminLogin.tsx"
   ],
   "exclude": ["node_modules"]
 }

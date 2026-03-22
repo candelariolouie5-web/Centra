@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 /* ===============================
@@ -27,7 +27,6 @@ export async function GET() {
     // Fetch all appointments, most recent first
     const appointments = await prisma.appointment.findMany({
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true, email: true } } },
     });
 
     return NextResponse.json({ appointments }, { status: 200 });
@@ -61,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     const { id, status } = await request.json();
     console.log("PATCH request received:", { id, status });
 
-    if (!id || !["CONFIRMED", "REJECTED"].includes(status)) {
+    if (!id || !["CONFIRMED", "REJECTED", "CANCELLED"].includes(status)) {
       console.log("Invalid payload:", { id, status });
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }

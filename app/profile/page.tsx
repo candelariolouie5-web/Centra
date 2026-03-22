@@ -10,6 +10,13 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
+  if (session.user.role === "doctor") {
+    redirect("/doctors/dashboard");
+  }
+  if (session.user.role === "ADMIN") {
+    redirect("/admin/dashboard");
+  }
+
   const user = session.user;
 
   return (
