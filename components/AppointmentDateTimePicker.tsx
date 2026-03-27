@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useSession } from "next-auth/react";
 
 export type ServiceType = "ear" | "nose" | "throat" | "aesthetics";
 
@@ -11,9 +10,10 @@ type SlotInfo = {
   occupied: number;
   remaining: number;
   isFull: boolean;
+  reason?: string;
 };
 
-type AvailabilityKey = string; // `${dateStr}-${time}`
+type AvailabilityKey = string;
 
 export type PickerSelection = {
   date: string;
@@ -28,13 +28,15 @@ type BlockedDate = {
   reason: string | null;
 };
 
-interface AppointmentDateTimePickerProps {
+type AppointmentDateTimePickerProps = {
   serviceType?: ServiceType;
   onSelect: (selection: PickerSelection) => void;
   onClose?: () => void;
   weekStart?: Date;
   className?: string;
-}
+  source?: "user" | "staff";
+  allowSameDay?: boolean;
+};
 
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const clinicHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
@@ -59,7 +61,21 @@ function isSunday(date: Date): boolean {
 function isPast(date: Date): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return date < today;
+
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  return target < today;
+}
+
+function isToday(date: Date): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  return target.getTime() === today.getTime();
 }
 
 function parseDateOnly(value: Date | string): Date {
@@ -69,6 +85,7 @@ function parseDateOnly(value: Date | string): Date {
 
 function isDateBlocked(date: Date, blockedDates: BlockedDate[]): boolean {
   const target = parseDateOnly(date).getTime();
+
   return blockedDates.some((bd) => {
     const start = parseDateOnly(bd.startDate).getTime();
     const end = parseDateOnly(bd.endDate).getTime();
@@ -87,66 +104,67 @@ function formatTime(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
+function formatDisplayTime(hour: number): string {
+  return `${hour % 12 === 0 ? "12" : hour % 12}:00 ${hour >= 12 ? "PM" : "AM"}`;
+}
+
 function getAvailabilityKey(dateStr: string, time: string): AvailabilityKey {
   return `${dateStr}-${time}`;
 }
 
-const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
+export default function AppointmentDateTimePicker({
   serviceType: propServiceType,
   onSelect,
   onClose,
   weekStart: propWeekStart,
   className = "",
-}) => {
-  const { status } = useSession();
-
+  source = "user",
+  allowSameDay = false,
+}: AppointmentDateTimePickerProps) {
   const [serviceType, setServiceType] = useState<ServiceType>(propServiceType || "ear");
   const [weekStart, setWeekStart] = useState<Date>(propWeekStart || startOfWeek(new Date()));
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
-  const [staffCount, setStaffCount] = useState(1);
   const [availabilityMap, setAvailabilityMap] = useState<Record<AvailabilityKey, SlotInfo>>({});
   const [loading, setLoading] = useState(true);
   const [gridLoading, setGridLoading] = useState(false);
 
-  const weekDays = getWeekDays(weekStart);
+  useEffect(() => {
+    if (propServiceType) {
+      setServiceType(propServiceType);
+    }
+  }, [propServiceType]);
+
+  useEffect(() => {
+    if (propWeekStart) {
+      setWeekStart(propWeekStart);
+    }
+  }, [propWeekStart]);
+
+  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
 
   const fetchBlockedDates = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/availability", { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch availability");
+
+      const res = await fetch("/api/availability", {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch availability");
+      }
+
       const data = await res.json();
-      setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []);
-    } catch (err) {
-      console.error("Availability fetch error:", err);
+      setBlockedDates(Array.isArray(data?.blockedDates) ? data.blockedDates : []);
+    } catch (error) {
+      console.error("Availability fetch error:", error);
       setBlockedDates([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const fetchStaffCount = useCallback(async () => {
-    try {
-      const todayStr = formatDate(new Date());
-      const res = await fetch(`/api/availability?date=${todayStr}&time=08:00`, {
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
-        setStaffCount(1);
-        return;
-      }
-
-      const data = await res.json();
-      setStaffCount(Number(data?.slotInfo?.capacity ?? 1));
-    } catch {
-      setStaffCount(1);
-    }
-  }, []);
-
   const fetchWeekAvailability = useCallback(async () => {
-    if (status === "loading") return;
-
     try {
       setGridLoading(true);
 
@@ -157,20 +175,66 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
             const time = formatTime(hour);
             const key = getAvailabilityKey(dateStr, time);
 
+            const sunday = isSunday(day);
+            const past = isPast(day);
+            const sameDayBlocked = !allowSameDay && isToday(day);
+
+            if (sunday) {
+              return [
+                key,
+                {
+                  capacity: 0,
+                  occupied: 0,
+                  remaining: 0,
+                  isFull: true,
+                  reason: "Clinic is closed on Sundays",
+                } satisfies SlotInfo,
+              ] as const;
+            }
+
+            if (past) {
+              return [
+                key,
+                {
+                  capacity: 0,
+                  occupied: 0,
+                  remaining: 0,
+                  isFull: true,
+                  reason: "Past dates are unavailable",
+                } satisfies SlotInfo,
+              ] as const;
+            }
+
+            if (sameDayBlocked) {
+              return [
+                key,
+                {
+                  capacity: 0,
+                  occupied: 0,
+                  remaining: 0,
+                  isFull: true,
+                  reason: "Same-day booking is not allowed",
+                } satisfies SlotInfo,
+              ] as const;
+            }
+
             try {
-              const res = await fetch(`/api/availability?date=${dateStr}&time=${time}`, {
-                cache: "no-store",
-              });
+              const res = await fetch(
+                `/api/availability?date=${dateStr}&time=${time}&source=${source}`,
+                {
+                  cache: "no-store",
+                }
+              );
 
               if (!res.ok) {
-                const fallbackCapacity = staffCount || 1;
                 return [
                   key,
                   {
-                    capacity: fallbackCapacity,
-                    occupied: fallbackCapacity,
+                    capacity: 1,
+                    occupied: 1,
                     remaining: 0,
                     isFull: true,
+                    reason: "Unavailable",
                   } satisfies SlotInfo,
                 ] as const;
               }
@@ -178,30 +242,28 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
               const data = await res.json();
               const slotInfo = data?.slotInfo ?? {};
 
-              const capacity = Number(slotInfo.capacity ?? staffCount ?? 1);
-              const remaining = Number(slotInfo.remaining ?? 0);
-              const occupied = Number(
-                slotInfo.occupied ?? Math.max(0, capacity - remaining)
-              );
-
               return [
                 key,
                 {
-                  capacity,
-                  occupied,
-                  remaining,
-                  isFull: remaining <= 0,
+                  capacity: Number(slotInfo.capacity ?? 1),
+                  occupied: Number(slotInfo.occupied ?? slotInfo.booked ?? 0),
+                  remaining: Number(slotInfo.remaining ?? 0),
+                  isFull: Boolean(slotInfo.isFull ?? Number(slotInfo.remaining ?? 0) <= 0),
+                  reason:
+                    typeof slotInfo.reason === "string" && slotInfo.reason.trim()
+                      ? slotInfo.reason
+                      : undefined,
                 } satisfies SlotInfo,
               ] as const;
             } catch {
-              const fallbackCapacity = staffCount || 1;
               return [
                 key,
                 {
-                  capacity: fallbackCapacity,
-                  occupied: fallbackCapacity,
+                  capacity: 1,
+                  occupied: 1,
                   remaining: 0,
                   isFull: true,
+                  reason: "Unavailable",
                 } satisfies SlotInfo,
               ] as const;
             }
@@ -210,15 +272,16 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
       );
 
       setAvailabilityMap(Object.fromEntries(entries));
+    } catch (error) {
+      console.error("Week availability fetch error:", error);
     } finally {
       setGridLoading(false);
     }
-  }, [weekDays, staffCount, status]);
+  }, [weekDays, source, allowSameDay]);
 
   useEffect(() => {
     fetchBlockedDates();
-    fetchStaffCount();
-  }, [fetchBlockedDates, fetchStaffCount]);
+  }, [fetchBlockedDates]);
 
   useEffect(() => {
     fetchWeekAvailability();
@@ -231,12 +294,30 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
 
     return (
       availabilityMap[key] ?? {
-        capacity: staffCount || 1,
-        occupied: 0,
-        remaining: staffCount || 1,
-        isFull: false,
+        capacity: 1,
+        occupied: 1,
+        remaining: 0,
+        isFull: true,
+        reason: "Unavailable",
       }
     );
+  };
+
+  const getUnavailableReason = (date: Date, hour: number): string => {
+    const slot = getSlotInfo(date, hour);
+    const blocked = isDateBlocked(date, blockedDates);
+    const past = isPast(date);
+    const sunday = isSunday(date);
+    const sameDayBlocked = !allowSameDay && isToday(date);
+
+    if (blocked) return "Blocked";
+    if (past) return "Past date";
+    if (sunday) return "Closed";
+    if (sameDayBlocked) return "Same-day booking is not allowed";
+    if (slot.reason) return slot.reason;
+    if (slot.remaining <= 0 || slot.isFull) return "Fully booked";
+
+    return "Unavailable";
   };
 
   const isSlotAvailable = (date: Date, hour: number): boolean => {
@@ -244,25 +325,19 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
     const blocked = isDateBlocked(date, blockedDates);
     const past = isPast(date);
     const sunday = isSunday(date);
+    const sameDayBlocked = !allowSameDay && isToday(date);
 
-    return !blocked && !past && !sunday && slot.remaining > 0;
+    return !blocked && !past && !sunday && !sameDayBlocked && slot.remaining > 0 && !slot.isFull;
   };
 
   const handleSlotClick = (date: Date, hour: number) => {
     if (!isSlotAvailable(date, hour)) return;
 
-    const dateStr = formatDate(date);
-    const timeStr = formatTime(hour);
-
-    console.log("Picker clicked:", {
-      date,
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate(),
-      dateStr,
+    onSelect({
+      date: formatDate(date),
+      time: formatTime(hour),
+      serviceType,
     });
-
-    onSelect({ date: dateStr, time: timeStr, serviceType });
   };
 
   const goToToday = () => {
@@ -287,39 +362,44 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3 bg-gray-100 rounded-xl p-1 border border-gray-200">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-100 p-1">
           <button
             onClick={goToToday}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-lg shadow-sm hover:shadow-md"
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:shadow-md"
+            type="button"
           >
             Today
           </button>
+
           <button
             onClick={prevWeek}
-            className="p-2 hover:bg-gray-200 rounded-lg"
+            className="rounded-lg p-2 hover:bg-gray-200"
             aria-label="Previous"
+            type="button"
           >
             <ChevronLeft size={16} />
           </button>
+
           <button
             onClick={nextWeek}
-            className="p-2 hover:bg-gray-200 rounded-lg"
+            className="rounded-lg p-2 hover:bg-gray-200"
             aria-label="Next"
+            type="button"
           >
             <ChevronRight size={16} />
           </button>
         </div>
 
         {propServiceType ? (
-          <span className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-200 rounded-xl">
+          <span className="rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700">
             {propServiceType.charAt(0).toUpperCase() + propServiceType.slice(1)}
           </span>
         ) : (
           <select
             value={serviceType}
             onChange={(e) => setServiceType(e.target.value as ServiceType)}
-            className="bg-gray-100 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium text-gray-700"
+            className="rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700"
           >
             <option value="ear">Ear</option>
             <option value="nose">Nose</option>
@@ -329,44 +409,79 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-8 border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
+      <div className="grid min-w-full grid-cols-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-r border-gray-200 bg-gray-50">
+          <div className="flex h-12 items-center justify-center border-b border-gray-200 text-xs font-semibold text-gray-500">
+            Time
+          </div>
+
           {clinicHours.map((hour) => (
             <div
               key={hour}
-              className="h-16 border-b border-gray-100 flex items-center justify-end pr-2 text-xs text-gray-500 font-mono"
+              className="flex h-16 items-center justify-end border-b border-gray-100 pr-2 font-mono text-xs text-gray-500"
             >
-              {hour % 12 === 0 ? "12" : hour % 12}:00 {hour >= 12 ? "PM" : "AM"}
+              {formatDisplayTime(hour)}
             </div>
           ))}
         </div>
 
         {weekDays.map((day) => {
           const blocked = isDateBlocked(day, blockedDates);
-          const fullyBooked = clinicHours.every((hour) => !isSlotAvailable(day, hour));
-          const unavailable = isSunday(day) || isPast(day) || blocked || fullyBooked;
+          const sunday = isSunday(day);
+          const past = isPast(day);
+          const sameDayBlocked = !allowSameDay && isToday(day);
+
+          const fullyBooked =
+            !blocked &&
+            !sunday &&
+            !past &&
+            !sameDayBlocked &&
+            clinicHours.every((hour) => !isSlotAvailable(day, hour));
+
+          const unavailable = sunday || past || blocked || sameDayBlocked || fullyBooked;
 
           return (
             <div
               key={day.toISOString()}
-              className={`border-r border-gray-200 ${unavailable ? "bg-red-50/50" : ""}`}
+              className={`border-r border-gray-200 last:border-r-0 ${
+                unavailable
+                  ? sameDayBlocked
+                    ? "bg-amber-50/50"
+                    : "bg-red-50/50"
+                  : ""
+              }`}
             >
-              <div className="h-12 border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white flex flex-col items-center justify-center text-xs font-semibold text-gray-700 p-1">
+              <div className="flex h-12 flex-col items-center justify-center border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white p-1 text-xs font-semibold text-gray-700">
                 <span>
                   {days[day.getDay()]} {day.getDate()}
                 </span>
+
                 {blocked && (
-                  <span className="text-red-600 text-[10px] px-1 py-px bg-red-100 rounded">
+                  <span className="rounded bg-red-100 px-1 py-px text-[10px] text-red-600">
                     Blocked
                   </span>
                 )}
-                {isSunday(day) && (
-                  <span className="text-orange-600 text-[10px] px-1 py-px bg-orange-100 rounded">
+
+                {sunday && (
+                  <span className="rounded bg-orange-100 px-1 py-px text-[10px] text-orange-600">
                     Closed
                   </span>
                 )}
-                {fullyBooked && !blocked && !isSunday(day) && (
-                  <span className="text-orange-600 text-[10px] px-1 py-px bg-orange-100 rounded">
+
+                {sameDayBlocked && !blocked && !sunday && !past && (
+                  <span className="rounded bg-amber-100 px-1 py-px text-[10px] text-amber-700">
+                    No Same-Day
+                  </span>
+                )}
+
+                {past && !blocked && !sunday && (
+                  <span className="rounded bg-gray-200 px-1 py-px text-[10px] text-gray-600">
+                    Past
+                  </span>
+                )}
+
+                {fullyBooked && !blocked && !sunday && !sameDayBlocked && !past && (
+                  <span className="rounded bg-orange-100 px-1 py-px text-[10px] text-orange-600">
                     Full
                   </span>
                 )}
@@ -383,20 +498,24 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
                     key={hour}
                     onClick={() => handleSlotClick(day, hour)}
                     disabled={!available || gridLoading}
-                    className={`h-16 w-full border-b border-gray-100 flex items-center justify-center text-xs font-semibold relative group transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={`group relative flex h-16 w-full items-center justify-center border-b border-gray-100 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                       available
-                        ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-l-4 border-emerald-400"
-                        : "bg-gray-100 text-gray-400"
+                        ? "border-l-4 border-emerald-400 bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                        : sameDayBlocked
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-gray-100 text-gray-400"
                     }`}
                     title={
-                      !available
-                        ? "Unavailable"
-                        : `Available (${slot.remaining} slots)`
+                      available
+                        ? `Available (${slot.remaining} slots)`
+                        : getUnavailableReason(day, hour)
                     }
+                    type="button"
                   >
-                    {hour}:00
+                    {formatDisplayTime(hour)}
+
                     {capacityText && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap z-10 shadow-lg">
+                      <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-all group-hover:opacity-100">
                         {capacityText}
                       </span>
                     )}
@@ -411,13 +530,12 @@ const AppointmentDateTimePicker: React.FC<AppointmentDateTimePickerProps> = ({
       {onClose && (
         <button
           onClick={onClose}
-          className="w-full py-3 px-6 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-all mt-4"
+          className="mt-4 w-full rounded-xl bg-gray-200 px-6 py-3 font-medium text-gray-800 transition-all hover:bg-gray-300"
+          type="button"
         >
           Close
         </button>
       )}
     </div>
   );
-};
-
-export default AppointmentDateTimePicker;
+}

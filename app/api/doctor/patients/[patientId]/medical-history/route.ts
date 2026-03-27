@@ -1,8 +1,9 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/doctor/api/auth/[...nextauth]/route";  // Doctor auth
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { join } from "path";
 
 // Ensure upload directory exists
@@ -17,7 +18,10 @@ async function ensureUploadDir(dirPath: string) {
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ patientId: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
@@ -60,11 +64,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ medicalHistories });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to fetch medical histories" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch medical histories" },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ patientId: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
@@ -99,7 +109,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const formData = await request.formData();
-    
+
     const type = formData.get("type") as string;
     const resultDateStr = formData.get("resultDate") as string;
     const lab = formData.get("lab") as string;
@@ -107,17 +117,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const photos = formData.getAll("photos") as File[];
 
     if (!type || !resultDateStr || !remarks) {
-      return NextResponse.json({ error: "Type, result date, and remarks are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Type, result date, and remarks are required" },
+        { status: 400 }
+      );
     }
 
     // Parse date string and create date in local time (noon to avoid timezone issues)
-    const [year, month, day] = resultDateStr.split('-').map(Number);
+    const [year, month, day] = resultDateStr.split("-").map(Number);
     const resultDate = new Date(year, month - 1, day, 12, 0, 0);
 
     // Process uploaded images
     const photoUrls: string[] = [];
     const uploadDir = join(process.cwd(), "public", "uploads", "medical-history");
-    
+
     await ensureUploadDir(uploadDir);
 
     for (const photo of photos) {
@@ -125,11 +138,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         try {
           const bytes = await photo.arrayBuffer();
           const buffer = Buffer.from(bytes);
-          
-          const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-          const fileName = `${uniqueSuffix}-${photo.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+
+          const uniqueSuffix = `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(7)}`;
+          const fileName = `${uniqueSuffix}-${photo.name.replace(
+            /[^a-zA-Z0-9.-]/g,
+            "_"
+          )}`;
           const filePath = join(uploadDir, fileName);
-          
+
           await writeFile(filePath, buffer);
           photoUrls.push(`/uploads/medical-history/${fileName}`);
         } catch (photoError) {
@@ -143,22 +161,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       data: {
         patientId,
         type,
-        resultDate: resultDate,
+        resultDate,
         lab: lab || null,
         remarks,
         photos: photoUrls,
       },
     });
 
-    return NextResponse.json({ message: "Medical history created successfully", medicalHistory });
+    return NextResponse.json({
+      message: "Medical history created successfully",
+      medicalHistory,
+    });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to create medical history" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create medical history" },
+      { status: 500 }
+    );
   }
 }
 
 // DELETE endpoint
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ patientId: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
@@ -180,9 +207,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
   }
 
-  // Get historyId from query params or body
   const { searchParams } = new URL(request.url);
-  const historyId = searchParams.get('historyId');
+  const historyId = searchParams.get("historyId");
 
   if (!historyId) {
     return NextResponse.json({ error: "History ID is required" }, { status: 400 });
@@ -190,9 +216,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     const medicalHistory = await prisma.medicalHistory.findFirst({
-      where: { 
+      where: {
         id: historyId,
-        patientId 
+        patientId,
       },
     });
 
@@ -200,12 +226,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: "Medical history not found" }, { status: 404 });
     }
 
-    // Delete photos files (optional cleanup)
     if (medicalHistory.photos && medicalHistory.photos.length > 0) {
       const uploadDir = join(process.cwd(), "public", "uploads", "medical-history");
+
       for (const photoUrl of medicalHistory.photos) {
-        const fileName = photoUrl.replace('/uploads/medical-history/', '');
+        const fileName = photoUrl.replace("/uploads/medical-history/", "");
         const filePath = join(uploadDir, fileName);
+
         try {
           const { default: fs } = await import("fs");
           if (fs.existsSync(filePath)) {
@@ -216,13 +243,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     await prisma.medicalHistory.delete({
-      where: { id: historyId }
+      where: { id: historyId },
     });
 
     return NextResponse.json({ message: "Medical history deleted successfully" });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to delete medical history" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete medical history" },
+      { status: 500 }
+    );
   }
 }
-

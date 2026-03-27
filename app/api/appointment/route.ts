@@ -9,6 +9,17 @@ import {
 } from "@/lib/prisma";
 
 /* ===============================
+   HELPERS
+================================ */
+function normalizePhone(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "").slice(0, 11);
+}
+
+function isValidPHMobile(value: string) {
+  return /^09\d{9}$/.test(value);
+}
+
+/* ===============================
    SHARED → CREATE APPOINTMENT (Users/Staff/Clinical/Soap)
    Exact Account Assignment:
    1st booking = ADMIN
@@ -24,6 +35,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    const isStaffSession =
+      session.user.role === "ADMIN" || session.user.role === "DOCTOR";
+
+    const rawSource =
+      typeof body?.source === "string" ? body.source.trim().toLowerCase() : "";
+
+    const normalizedSource =
+      rawSource === "staff" ||
+      rawSource === "clinical" ||
+      rawSource === "soap" ||
+      rawSource === "admin" ||
+      rawSource === "doctor"
+        ? "staff"
+        : rawSource === "user"
+          ? "user"
+          : undefined;
+
     const {
       date,
       time,
@@ -34,8 +63,9 @@ export async function POST(request: NextRequest) {
       contactNumber,
       email: bodyEmail,
       room,
-      source = "user",
     } = body;
+
+    const source = normalizedSource ?? (isStaffSession ? "staff" : "user");
 
     if (!date || !time || !serviceType) {
       return NextResponse.json(
@@ -43,6 +73,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const sanitizedContactNumber = normalizePhone(contactNumber);
 
     let finalPatientId: string;
     let finalUserId: string | null = null;
@@ -67,16 +99,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Patient not found" }, { status: 400 });
       }
 
+      const patientPhone = patient.phone ? normalizePhone(patient.phone) : undefined;
+      const incomingPhone = sanitizedContactNumber || undefined;
+      const mergedPhone = incomingPhone || patientPhone;
+
       finalPatientId = patient.id;
       finalUserId = null;
       finalFullName = name || patient.name || "Patient";
       finalEmail = bodyEmail || patient.email || "";
       finalAge = age ? parseInt(String(age), 10) : patient.age ?? undefined;
-      finalContactNumber = contactNumber || patient.phone || undefined;
+      finalContactNumber = mergedPhone;
     } else {
-      if (!name || !contactNumber) {
+      if (!name || !sanitizedContactNumber) {
         return NextResponse.json(
           { error: "name, contactNumber required for self-booking" },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidPHMobile(sanitizedContactNumber)) {
+        return NextResponse.json(
+          { error: "Contact number must be a valid 11-digit PH mobile number (09XXXXXXXXX)" },
           { status: 400 }
         );
       }
@@ -88,7 +131,7 @@ export async function POST(request: NextRequest) {
           OR: [
             {
               name,
-              phone: contactNumber,
+              phone: sanitizedContactNumber,
             },
             ...(safeEmail
               ? [
@@ -108,7 +151,7 @@ export async function POST(request: NextRequest) {
             name,
             email: safeEmail || undefined,
             age: age ? parseInt(String(age), 10) : undefined,
-            phone: contactNumber || undefined,
+            phone: sanitizedContactNumber,
           },
         });
       } else {
@@ -118,7 +161,7 @@ export async function POST(request: NextRequest) {
             name,
             email: safeEmail || patient.email || undefined,
             age: age ? parseInt(String(age), 10) : patient.age ?? undefined,
-            phone: contactNumber || patient.phone || undefined,
+            phone: sanitizedContactNumber,
           },
         });
       }
@@ -128,11 +171,27 @@ export async function POST(request: NextRequest) {
       finalFullName = name;
       finalEmail = safeEmail;
       finalAge = age ? parseInt(String(age), 10) : undefined;
-      finalContactNumber = contactNumber;
+      finalContactNumber = sanitizedContactNumber;
     }
 
     if (finalAge !== undefined && (isNaN(finalAge) || finalAge <= 0)) {
       return NextResponse.json({ error: "Invalid age" }, { status: 400 });
+    }
+
+    if (source === "user") {
+      if (!finalContactNumber) {
+        return NextResponse.json(
+          { error: "Contact number is required" },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidPHMobile(finalContactNumber)) {
+        return NextResponse.json(
+          { error: "Contact number must be a valid 11-digit PH mobile number (09XXXXXXXXX)" },
+          { status: 400 }
+        );
+      }
     }
 
     const appointmentDateTime = new Date(`${date}T${time}`);

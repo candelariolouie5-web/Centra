@@ -1,5 +1,6 @@
-import DoctorAppointmentCalendar from "@/components/DoctorAppointmentCalendar";
+import AppointmentCalendar from "@/components/AppointmentCalendar";
 
 export default function DoctorAppointmentsPage() {
-  return <DoctorAppointmentCalendar />;
+  return <AppointmentCalendar />;
 }
+

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { ActionChips } from "./UIHelpers";
 import PrescriptionModal, { Prescription } from "./PrescriptionModal";
 import HeadTemplateModal from "./HeadTemplateModal";
@@ -272,6 +273,8 @@ const SoapNoteModal = ({
   onClose: () => void;
   patient: Patient | null;
 }) => {
+  const { data: session } = useSession();
+
   const [openPrescription, setOpenPrescription] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -382,7 +385,9 @@ const SoapNoteModal = ({
 
   const handleAddOrUpdatePrescription = (rx: Prescription) => {
     if (editingIndex !== null) {
-      setPrescriptions((prev: Prescription[]) => prev.map((p: Prescription, i: number) => (i === editingIndex ? rx : p)));
+      setPrescriptions((prev: Prescription[]) =>
+        prev.map((p: Prescription, i: number) => (i === editingIndex ? rx : p))
+      );
       setEditingIndex(null);
     } else {
       setPrescriptions((prev: Prescription[]) => [...prev, rx]);
@@ -397,21 +402,24 @@ const SoapNoteModal = ({
 
   const handleDelete = (idx: number) => {
     if (confirm("Delete this prescription?")) {
-      setPrescriptions((prev: Prescription[]) => prev.filter((_: Prescription, i: number) => i !== idx));
+      setPrescriptions((prev: Prescription[]) =>
+        prev.filter((_: Prescription, i: number) => i !== idx)
+      );
     }
   };
 
   const handleRemoveMaterial = (idx: number) => {
     if (confirm("Remove this educational material?")) {
-      setSelectedMaterials((prev: EducationalMaterial[]) => prev.filter((_: EducationalMaterial, i: number) => i !== idx));
+      setSelectedMaterials((prev: EducationalMaterial[]) =>
+        prev.filter((_: EducationalMaterial, i: number) => i !== idx)
+      );
     }
   };
 
   const handleSaveNote = async () => {
     setError(null);
+
     try {
-      console.log("CURRENT SESSION ROLE:", typeof window !== 'undefined' ? (window as any).session?.user?.role || 'NO_SESSION' : 'SERVER_SIDE');
-      
       const payload = {
         patientId: patient.id,
         chiefComplaint,
@@ -423,11 +431,29 @@ const SoapNoteModal = ({
         imageData: diagnostics[0]?.imageData || null,
         prescriptions,
       };
-      
+
+      const userRole = String(session?.user?.role || "").toUpperCase();
+
+      if (userRole !== "ADMIN" && userRole !== "DOCTOR") {
+        const roleError = "Unauthorized role for SOAP note saving";
+        setError(roleError);
+        alert(roleError);
+        return;
+      }
+
+      const apiPath =
+        userRole === "DOCTOR"
+          ? "/api/doctor/soap-notes"
+          : "/api/admin/soap-notes";
+
+      console.log("[SOAP-SAVE-CONTEXT]", {
+        sessionRole: userRole,
+        apiPath,
+        patientId: patient.id,
+      });
+
       console.log("[SOAP-SAVE-PAYLOAD]", payload);
 
-      const userRole = typeof window !== 'undefined' ? (window as any).session?.user?.role || 'ADMIN' : 'ADMIN';
-      const apiPath = userRole === 'ADMIN' ? '/api/admin/soap-notes' : '/api/doctor/soap-notes';
       const response = await fetch(apiPath, {
         method: "POST",
         headers: {
@@ -443,22 +469,18 @@ const SoapNoteModal = ({
       });
 
       if (!response.ok) {
-        // Clone response to read body twice
-        const clonedResponse = response.clone();
-        const contentType = response.headers.get('content-type') || '';
+        const contentType = response.headers.get("content-type") || "";
         let jsonErrorData: any = null;
-        let errorTextContent = '';
+        let errorTextContent = "";
 
-        if (contentType.includes('application/json')) {
+        if (contentType.includes("application/json")) {
           try {
-            const jsonText = await clonedResponse.text();
-            console.log("[SOAP-ERROR-RAW]", jsonText);
-            jsonErrorData = jsonText ? JSON.parse(jsonText) : {};
+            jsonErrorData = await response.json();
           } catch (parseErr) {
             console.error("[SOAP-JSON-PARSE-ERROR]", parseErr);
           }
         } else {
-          errorTextContent = await clonedResponse.text();
+          errorTextContent = await response.text();
           console.log("[SOAP-ERROR-NON-JSON]", errorTextContent.substring(0, 500));
         }
 
@@ -470,9 +492,12 @@ const SoapNoteModal = ({
           errorTextPreview: errorTextContent.substring(0, 200),
         });
 
-        const errorMessage = jsonErrorData?.error || 
-                            (errorTextContent ? `Server Error (${response.status}): ${errorTextContent.substring(0, 100)}...` : 
-                            `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage =
+          jsonErrorData?.error ||
+          (errorTextContent
+            ? `Server Error (${response.status}): ${errorTextContent.substring(0, 100)}...`
+            : `HTTP ${response.status}: ${response.statusText}`);
+
         setError(errorMessage);
         alert(jsonErrorData?.error || `Failed to save SOAP Note: ${errorMessage}`);
         return;
@@ -483,7 +508,7 @@ const SoapNoteModal = ({
       onClose();
     } catch (error: any) {
       console.error("[SOAP-SAVE-CATCH]", error);
-      setError(`Network error: ${error.message}`);
+      setError(`Network error: ${error?.message || "Unknown error"}`);
       alert("Network error - please check connection and try again");
     }
   };
@@ -532,17 +557,20 @@ const SoapNoteModal = ({
   };
 
   const handleScheduleProcedure = (data: any) => {
-    // Normalize ClinicalRoomBookingData to ScheduledProcedure
     const normalized: ScheduledProcedure = {
-      procedureType: data.serviceType || data.procedureType || 'Procedure',
-      appointmentDate: data.appointmentDate || data.date || '',
-      appointmentTime: data.appointmentTime || data.time || '',
+      procedureType: data.serviceType || data.procedureType || "Procedure",
+      appointmentDate: data.appointmentDate || data.date || "",
+      appointmentTime: data.appointmentTime || data.time || "",
       room: data.room || data.roomType || null,
-      notes: data.notes || '',
-      doctor: patient.name || 'Doctor',
+      notes: data.notes || "",
+      doctor: patient.name || "Doctor",
     };
 
-    const normalizedRoom = normalized.room && isRoomType(normalized.room as any) ? normalized.room as RoomType : null;
+    const normalizedRoom =
+      normalized.room && isRoomType(normalized.room as any)
+        ? (normalized.room as RoomType)
+        : null;
+
     if (normalizedRoom) setSelectedRoom(normalizedRoom);
 
     setScheduledProcedure(normalized);
@@ -551,22 +579,28 @@ const SoapNoteModal = ({
     const nextFollowUpLine = `${FOLLOW_UP_MARKER} ${summary}`;
     const nextPlanLine = `• ${FOLLOW_UP_MARKER} ${summary}`;
 
-    setFollowUp((prev: string) => upsertLine(prev, nextFollowUpLine, isFollowUpScheduleLine));
-    setPlan((prev: string) => upsertLine(prev, nextPlanLine, isPlanScheduleLine));
+    setFollowUp((prev: string) =>
+      upsertLine(prev, nextFollowUpLine, isFollowUpScheduleLine)
+    );
+    setPlan((prev: string) =>
+      upsertLine(prev, nextPlanLine, isPlanScheduleLine)
+    );
     setOpenRoomModal(false);
   };
 
   const selectedRoomLabel = scheduledProcedure?.room
     ? formatRoomLabel(scheduledProcedure.room)
     : selectedRoom
-    ? ROOM_LABELS[selectedRoom]
-    : null;
+      ? ROOM_LABELS[selectedRoom]
+      : null;
 
   const renderScheduleSummaryCard = () => {
     if (!scheduledProcedure) {
       return (
         <div className="rounded-2xl border border-dashed border-cyan-200 bg-white px-4 py-4 text-sm text-slate-500">
-          <p className="font-semibold text-slate-700">No follow-up appointment scheduled yet.</p>
+          <p className="font-semibold text-slate-700">
+            No follow-up appointment scheduled yet.
+          </p>
           <p className="mt-1 text-xs text-slate-500">
             Use this order: <span className="font-semibold">Procedure → Date → Time → Room</span>
           </p>
@@ -842,6 +876,7 @@ const SoapNoteModal = ({
               <button
                 onClick={onClose}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                type="button"
               >
                 Close
               </button>
@@ -978,12 +1013,14 @@ const SoapNoteModal = ({
                                 <button
                                   onClick={() => handleEdit(idx)}
                                   className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                                  type="button"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   onClick={() => handleDelete(idx)}
                                   className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                                  type="button"
                                 >
                                   Delete
                                 </button>
@@ -1021,6 +1058,7 @@ const SoapNoteModal = ({
                               <button
                                 onClick={() => handleRemoveMaterial(idx)}
                                 className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                                type="button"
                               >
                                 Remove
                               </button>
@@ -1104,41 +1142,46 @@ const SoapNoteModal = ({
             </div>
           </div>
 
-              {error && (
-                <div className="border-t border-red-200 bg-red-50/80 p-4">
-                  <div className="flex items-start gap-2 text-sm text-red-800">
-                    <span className="mt-0.5 h-4 w-4 shrink-0 text-red-500">⚠️</span>
-                    <span>{error}</span>
-                  </div>
-                </div>
-              )}
-              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/90 px-5 py-4 backdrop-blur sm:px-6">
-                <button
-                  onClick={onClose}
-                  className="rounded-2xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleShowPreview}
-                  className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                >
-                  Preview
-                </button>
-                <button
-                  onClick={handleExportPDF}
-                  className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600"
-                >
-                  Export PDF
-                </button>
-                <button
-                  onClick={handleSaveNote}
-                  className="rounded-2xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700"
-                  disabled={!!error}
-                >
-                  Save Note
-                </button>
+          {error && (
+            <div className="border-t border-red-200 bg-red-50/80 p-4">
+              <div className="flex items-start gap-2 text-sm text-red-800">
+                <span className="mt-0.5 h-4 w-4 shrink-0 text-red-500">⚠️</span>
+                <span>{error}</span>
               </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/90 px-5 py-4 backdrop-blur sm:px-6">
+            <button
+              onClick={onClose}
+              className="rounded-2xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleShowPreview}
+              className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              type="button"
+            >
+              Preview
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600"
+              type="button"
+            >
+              Export PDF
+            </button>
+            <button
+              onClick={handleSaveNote}
+              className="rounded-2xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700"
+              disabled={!!error}
+              type="button"
+            >
+              Save Note
+            </button>
+          </div>
         </div>
       </div>
 

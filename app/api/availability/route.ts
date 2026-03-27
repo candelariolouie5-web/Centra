@@ -1,21 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma, getAvailabilityForSlot } from "@/lib/prisma";
 
 /* ===============================
-   PUBLIC → GET SLOT AVAILABILITY
+   HELPERS
+================================ */
+function getLocalDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/* ===============================
+   SHARED → GET SLOT AVAILABILITY
    Exact account capacity:
    - 1 free ADMIN account = 1 slot
    - 1 free DOCTOR account = 1 slot
    - same exact date+time cannot exceed exact active eligible accounts
+
+   RULES:
+   - public user booking: same-day NOT allowed
+   - admin/doctor staff scheduling: same-day allowed
 ================================ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const dateStr = searchParams.get("date");
     const time = searchParams.get("time");
+    const source = searchParams.get("source");
     const specificSlot = Boolean(dateStr && time);
 
+    const session = await getServerSession(authOptions);
+    const isStaffSession =
+      session?.user?.role === "ADMIN" || session?.user?.role === "DOCTOR";
+    const isStaffRequest = source === "staff" || isStaffSession;
+
     if (specificSlot) {
+      const today = getLocalDateString();
+
+      if (!isStaffRequest && dateStr === today) {
+        return NextResponse.json(
+          {
+            slotInfo: {
+              date: dateStr,
+              time,
+              capacity: 0,
+              booked: 0,
+              occupied: 0,
+              remaining: 0,
+              isFull: true,
+              reason: "Same-day booking is not allowed",
+            },
+          },
+          { status: 200 }
+        );
+      }
+
       const slotInfo = await getAvailabilityForSlot(dateStr as string, time as string);
 
       return NextResponse.json(

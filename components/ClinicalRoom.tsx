@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
@@ -12,7 +14,6 @@ import AppointmentDateTimePicker, {
   ServiceType as PickerServiceType,
 } from "./AppointmentDateTimePicker";
 import { useSession } from "next-auth/react";
-
 
 type RoomType = "ENT" | "Aesthetics" | "Consultation";
 
@@ -29,8 +30,8 @@ interface ClinicalRoomBookingData {
   patientId?: string;
   patientName: string;
   room: string;
-  serviceType: string; // "Ear Cleaning"
-  serviceTypeMapped?: string; // "ear"
+  serviceType: string;
+  serviceTypeMapped?: string;
   appointmentDate: string;
   appointmentTime: string;
   contactNumber?: string;
@@ -39,7 +40,6 @@ interface ClinicalRoomBookingData {
   notes?: string;
   source?: string;
 }
-
 
 interface ClinicalRoomProps {
   open: boolean;
@@ -152,14 +152,11 @@ function getInitialProcedure(patientService?: string) {
 function formatDisplayDate(value: string) {
   if (!value) return "No date selected";
 
-  // Manual parse to match picker, avoid timezone issues
-  const [year, month, day] = value.split('-').map(Number);
+  const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
 
   const date = new Date(year, month - 1, day);
   if (Number.isNaN(date.getTime())) return value;
-
-  console.log('formatDisplayDate:', { input: value, year, month, day, date, display: date.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) });
 
   return date.toLocaleDateString("en-PH", {
     month: "short",
@@ -211,6 +208,7 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
     time: string;
     serviceType: PickerServiceType;
   } | null>(null);
+
   const [selectedRoom, setSelectedRoom] = useState<ProcedureRoom | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -285,84 +283,76 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
   };
 
   const handleConfirmSchedule = async () => {
-    // Strict patientId validation
-    if (!patientId || patientId === 'temp' || !patientId.match(/^[a-zA-Z0-9_-]+$/)) {
-      alert('Invalid patient ID. Please select a valid patient from the patient list.');
+    if (!patientId || patientId === "temp" || !patientId.match(/^[a-zA-Z0-9_-]+$/)) {
+      alert("Invalid patient ID. Please select a valid patient from the patient list.");
       return;
     }
+
     if (!selectedProcedure || !selectedSchedule || !finalRoom || !session) {
       alert("Complete all fields and login required.");
       return;
     }
 
-    // Debug date for March bug
-    console.log('ClinicalRoom schedule:', {
-      patientId,
-      date: selectedSchedule.date,
-      parsedDate: new Date(selectedSchedule.date),
-      time: selectedSchedule.time
-    });
-
     setLoading(true);
 
     try {
-      // MAIN appointment creation
       const apiPayload = {
         patientId,
         date: selectedSchedule.date,
         time: selectedSchedule.time,
-        serviceType: selectedProcedure!.label,
+        serviceType: selectedProcedure.label,
         room: finalRoom.name,
-        contactNumber: patientContactNumber || '',
+        contactNumber: patientContactNumber || "",
         age: patientAge,
-        email: patientEmail || '',
-        source: 'clinical'
+        email: patientEmail || "",
+        source: "staff",
       };
 
-      const apiRes = await fetch('/api/appointment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(apiPayload)
+      const apiRes = await fetch("/api/appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
       });
 
       if (!apiRes.ok) {
         const err = await apiRes.json();
-        throw new Error(err.error || 'Booking failed');
+        throw new Error(err.error || "Booking failed");
       }
 
-      const { appointment } = await apiRes.json();
-      console.log('ClinicalRoom appointment created:', appointment.id);
+      await apiRes.json();
 
-      // Callback with full data
       const payload: ClinicalRoomBookingData = {
         patientId,
         patientName: displayPatientName,
         room: finalRoom.name,
-        serviceType: selectedProcedure!.label,
-        serviceTypeMapped: selectedProcedure!.pickerServiceType,
+        serviceType: selectedProcedure.label,
+        serviceTypeMapped: selectedProcedure.pickerServiceType,
         appointmentDate: selectedSchedule.date,
         appointmentTime: selectedSchedule.time,
         contactNumber: patientContactNumber || "",
         age: patientAge,
         email: patientEmail || "",
-        notes: `${selectedProcedure!.label} (${selectedProcedure!.pickerServiceType}) in ${finalRoom.name}`,
-        source: 'clinical'
+        notes: `${selectedProcedure.label} (${selectedProcedure.pickerServiceType}) in ${finalRoom.name}`,
+        source: "staff",
       };
 
       const submitHandler = onSelectSchedule ?? onConfirmSchedule;
-      if (submitHandler) await submitHandler(payload);
-      onSelectRoom?.(finalRoom.type);
 
+      if (submitHandler) {
+        await submitHandler(payload);
+      }
+
+      onSelectRoom?.(finalRoom.type);
       onClose();
     } catch (error) {
       console.error("Schedule confirm error:", error);
-      const msg = error instanceof Error ? error.message : "Failed to confirm schedule";
+      const msg =
+        error instanceof Error ? error.message : "Failed to confirm schedule";
       alert(msg);
     } finally {
       setLoading(false);
     }
   };
-
 
   const canConfirm = !!selectedProcedure && !!selectedSchedule && !!finalRoom;
 
@@ -406,6 +396,7 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
               onClick={onClose}
               className="rounded-lg p-2 transition-colors hover:bg-gray-100"
               aria-label="Close Clinical Room modal"
+              type="button"
             >
               <X className="h-5 w-5 text-gray-500" />
             </button>
@@ -522,8 +513,8 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
                         {finalRoom
                           ? finalRoom.name
                           : selectedSchedule
-                          ? "Choose room"
-                          : "Room will show after date and time"}
+                            ? "Choose room"
+                            : "Room will show after date and time"}
                       </p>
                     </div>
                   </div>
@@ -561,6 +552,8 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
                       <AppointmentDateTimePicker
                         serviceType={selectedProcedure.pickerServiceType}
                         onSelect={handleScheduleSelect}
+                        source="staff"
+                        allowSameDay={true}
                       />
                     </div>
                   ) : (
@@ -660,6 +653,7 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
               <button
                 onClick={onClose}
                 className="rounded-xl bg-gray-200 px-6 py-2.5 font-medium text-gray-800 transition hover:bg-gray-300"
+                type="button"
               >
                 Cancel
               </button>
@@ -672,6 +666,7 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
                     ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700"
                     : "cursor-not-allowed bg-gray-300 text-gray-500"
                 }`}
+                type="button"
               >
                 <Check className="h-5 w-5" />
                 {loading ? "Scheduling..." : "Confirm Booking"}
@@ -680,10 +675,8 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
           </div>
         </div>
       </div>
-
     </>
   );
-};
+}; 
 
 export default ClinicalRoom;
-
