@@ -8,21 +8,14 @@ import SoapNoteModal from "@/components/soapnotemodal";
 import AddPatientModal from "@/components/AddPatientModal";
 import MedicalHistoryModal from "@/components/medicalhistorymodal";
 import { Th, Td } from "@/components/UIHelpers";
-
-interface Patient {
-  id: string;
-  name: string | null;
-  email: string | null;
-  image?: string | null;
-  createdAt: string;
-}
+import type { Patient } from "@/types/Patient";
 
 export default function DoctorPatientsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [selected, setSelected] = useState<Patient | null>(null);
+  const [patients, setPatients] = useState<{id: string; name: string; email: string | null; image?: string | null; createdAt: string}[]>([]);
+  const [selected, setSelected] = useState<{id: string; name: string; email: string | null; image?: string | null; createdAt: string} | null>(null);
 
   const [showDetails, setShowDetails] = useState(false);
   const [showSoap, setShowSoap] = useState(false);
@@ -54,17 +47,31 @@ export default function DoctorPatientsPage() {
   const fetchPatients = async () => {
     try {
       setLoading(true);
+      setError("");
 
-      const res = await fetch("/api/admin/patients");
+      const res = await fetch("/api/doctor/patients");
 
-      if (!res.ok) throw new Error("Failed to fetch patients");
+      let data;
+      let apiError = "Failed to fetch patients";
 
-      const data = await res.json();
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error("JSON parse error:", parseErr);
+        throw new Error("Invalid response from server");
+      }
 
+      if (!res.ok) {
+        console.error("API Error response:", data);
+        apiError = data?.error || `HTTP ${res.status}: ${data?.message || "Unknown error"}`;
+        throw new Error(apiError);
+      }
+
+      console.log("Patients data:", data);
       setPatients(data.patients || []);
     } catch (err) {
-      console.error(err);
-      setError("Failed to load patients");
+      console.error("fetchPatients error:", err);
+      setError(err instanceof Error ? err.message : "Failed to load patients");
     } finally {
       setLoading(false);
     }
@@ -125,6 +132,12 @@ export default function DoctorPatientsPage() {
       <section className="p-6 bg-gray-50 min-h-screen">
         <div className="flex justify-center items-center h-64">
           <p className="text-red-500">{error}</p>
+          <button 
+            onClick={fetchPatients}
+            className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Retry
+          </button>
         </div>
       </section>
     );
@@ -134,7 +147,7 @@ export default function DoctorPatientsPage() {
     <section className="p-6 bg-gray-50 min-h-screen space-y-6">
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold">Doctor Patient Management</h2>
+          <h2 className="text-xl font-semibold">Patient Management</h2>
           <p className="text-sm opacity-90">
             View and manage all registered patients
           </p>
@@ -188,7 +201,7 @@ export default function DoctorPatientsPage() {
               {currentPatients.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-center py-12 text-gray-400">
-                    No patients found
+                    {search ? "No matching patients found" : "No patients assigned yet. Create appointments to manage patients."}
                   </td>
                 </tr>
               ) : (

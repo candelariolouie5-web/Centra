@@ -5,22 +5,20 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    // Temporarily remove auth check for testing
-    // const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
+    // Check if user is admin
+    const admin = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
 
-    // // Check if user is admin
-    // const admin = await prisma.user.findUnique({
-    //   where: { id: session.user.id },
-    //   select: { role: true },
-    // });
-
-    // if (!admin || admin.role !== "ADMIN") {
-    //   return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
-    // }
+    if (!admin || admin.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const year = parseInt(searchParams.get("year") || new Date().getFullYear().toString());
@@ -31,13 +29,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [] }, { status: 200 });
     }
 
-    // Raw SQL to aggregate appointments per month
+    // Raw SQL filtered for ADMIN appointments
     const results = await prisma.$queryRaw`
       SELECT
         EXTRACT(MONTH FROM "appointmentDate")::int as month,
         COUNT(*)::int as count
       FROM "Appointment"
       WHERE status IN ('ACCEPTED', 'CONFIRMED')
+        AND "assignedToRole" = 'ADMIN'
         AND EXTRACT(YEAR FROM "appointmentDate")::int = ${year}
         AND EXTRACT(MONTH FROM "appointmentDate")::int = ANY(${selectedMonths})
       GROUP BY month

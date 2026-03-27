@@ -33,21 +33,19 @@ model Session {
 }
 
 model User {
-  id               String           @id @default(cuid())
-  name             String?
-  email            String?          @unique
-  emailVerified    DateTime?
-  image            String?
-  role             Role             @default(USER)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime
-  password         String?
-  isActive         Boolean          @default(true)
-  Account          Account[]
-  appointments     Appointment[]
-  medicalHistories MedicalHistory[]
-  Session          Session[]
-  soapNotes        SoapNote[]
+  id            String        @id @default(cuid())
+  name          String?
+  email         String?       @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role          @default(USER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  password      String?
+  isActive      Boolean       @default(true)
+  Account       Account[]
+  appointments  Appointment[]
+  Session       Session[]
 }
 
 model VerificationToken {
@@ -58,20 +56,49 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model Patient {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  age       Int?
+  gender    String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments     Appointment[]
+  soapNotes        SoapNote[]
+  medicalHistories MedicalHistory[]
+
+  @@index([email])
+  @@map("patients")
+}
+
 model Appointment {
-  id              String            @id @default(cuid())
-  userId          String
-  fullName        String
-  email           String
-  serviceType     String
-  appointmentDate DateTime
-  appointmentTime String
-  status          AppointmentStatus @default(PENDING)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  age             Int?
-  contactNumber   String?
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String                     @id @default(cuid())
+  userId           String? // Legacy, nullable
+  patientId        String? // New
+  fullName         String
+  email            String
+  serviceType      String
+  appointmentDate  DateTime
+  appointmentTime  String
+  status           AppointmentStatus          @default(CONFIRMED)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  age              Int?
+  contactNumber    String?
+  assignedToRole   AppointmentAssignmentRole?
+  assignedToUserId String? // Keep nullable
+  room             String?
+  source           String?
+  createdByRole    String?
+  user             User?                      @relation(fields: [userId], references: [id])
+  patient          Patient?                   @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([assignedToUserId])
 }
 
 model SoapNote {
@@ -86,8 +113,9 @@ model SoapNote {
   prescriptions     Json?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  imageData         String?
   prescriptionsList Prescription[]
-  patient           User           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
 model Prescription {
@@ -112,7 +140,7 @@ model MedicalHistory {
   photos     String[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  patient    User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
 model BlockedDate {
@@ -126,6 +154,11 @@ model BlockedDate {
 
 enum Role {
   USER
+  ADMIN
+  DOCTOR
+}
+
+enum AppointmentAssignmentRole {
   ADMIN
   DOCTOR
 }

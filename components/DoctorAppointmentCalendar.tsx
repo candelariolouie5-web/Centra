@@ -6,11 +6,9 @@ import {
   ChevronRight,
   CalendarDays,
   Inbox,
-  CalendarOff,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import AppointmentRequestsModal from "@/components/AppointmentRequestModal";
-import BlockDatesModal from "@/components/BlockDatesModal";
+// import AppointmentRequestsModal from "@/components/AppointmentRequestModal";
 
 /* ================= TYPES ================= */
 
@@ -47,13 +45,6 @@ type Appointment = {
     name?: string;
     email?: string;
   };
-};
-
-type BlockedDate = {
-  id: string;
-  startDate: Date | string;
-  endDate: Date | string;
-  reason: string | null;
 };
 
 /* ================= STYLES ================= */
@@ -149,6 +140,7 @@ function getWeekDays(start: Date) {
 
 function normalizeServiceType(service: string): ServiceType {
   const value = service?.toLowerCase() as ServiceType;
+
   if (
     value === "ear" ||
     value === "nose" ||
@@ -157,6 +149,7 @@ function normalizeServiceType(service: string): ServiceType {
   ) {
     return value;
   }
+
   return "ear";
 }
 
@@ -208,98 +201,65 @@ function formatTime(date: Date) {
   });
 }
 
-function normalizeDateOnly(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
+/* ================= DOCTOR APPOINTMENT CALENDAR ================= */
 
-function isDateWithinRange(target: Date, start: Date, end: Date) {
-  const t = normalizeDateOnly(target).getTime();
-  const s = normalizeDateOnly(start).getTime();
-  const e = normalizeDateOnly(end).getTime();
-  return t >= s && t <= e;
-}
-
-function getBlockedInfo(date: Date, blockedDates: BlockedDate[]) {
-  return blockedDates.find((blocked) =>
-    isDateWithinRange(
-      date,
-      new Date(blocked.startDate),
-      new Date(blocked.endDate)
-    )
-  );
-}
-
-/* ================= COMPONENT ================= */
-
-export default function AppointmentCalendar() {
+export default function DoctorAppointmentCalendar() {
   const { data: session, status } = useSession();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [blockDatesModalOpen, setBlockDatesModalOpen] = useState(false);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [view, setView] = useState<"week" | "month" | "day">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
-const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedAppointment, setSelectedAppointment] =
-    useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     try {
-      const userRole = session?.user?.role;
-      const appointmentPath = userRole === 'ADMIN' ? '/api/admin/appointment' : '/api/doctor/appointment';
-      const res = await fetch(appointmentPath, {
+const res = await fetch("/api/doctor/appointment", {
         credentials: "include",
       });
 
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || "Failed to fetch appointments");
+        throw new Error(errorText || "Failed to fetch doctor appointments");
       }
 
       const data = await res.json();
 
-      const mappedAppointments = (data.appointments || []).map((appt: any) => ({
-        ...appt,
-        fullName: appt.fullName || appt.user?.name || "Unknown",
-        email: appt.email || appt.user?.email || "",
-      }));
-
-      setAppointments(mappedAppointments);
-    } catch (err) {
-      console.error("Failed to fetch appointments", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch appointments");
-    }
-  }, [session]);
-
-  const fetchBlockedDates = useCallback(async () => {
-    try {
-      const userRole = session?.user?.role;
-      const blockedDatesPath = userRole === 'ADMIN' ? '/api/admin/blocked-dates' : '/api/doctor/blocked-dates';
-      const res = await fetch(blockedDatesPath, {
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch blocked dates");
+      const rawAppointments = data.appointments || data.data || [];
+      
+      if (Array.isArray(rawAppointments) && rawAppointments.length > 0 && rawAppointments[0]?._count) {
+        // Dashboard stats format - show empty calendar gracefully
+        setAppointments([]);
+      } else {
+        const mappedAppointments = rawAppointments.map((appt: any) => ({
+          id: appt.id,
+          fullName: appt.fullName || 'Unknown Patient',
+          email: appt.email || '',
+          serviceType: appt.serviceType || 'Consultation',
+          appointmentDate: appt.appointmentDate,
+          appointmentTime: appt.appointmentTime,
+          status: appt.status,
+          assignedToRole: appt.assignedToRole || 'DOCTOR',
+        }));
+        setAppointments(mappedAppointments);
       }
-
-      const data = await res.json();
-      setBlockedDates(data.blockedDates || []);
     } catch (err) {
-      console.error("Failed to fetch blocked dates:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch blocked dates");
+      console.error("Failed to fetch doctor appointments", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch doctor appointments"
+      );
     }
-  }, [session]);
+  }, []);
 
   useEffect(() => {
     if (status === "loading") return;
 
-    if (!session?.user || !['ADMIN', 'DOCTOR'].includes(session.user.role)) {
-      setError("Access denied: Staff only");
+    if (!session?.user || session.user.role !== "DOCTOR") {
+      setError("Access denied: Doctor only");
       setLoading(false);
       return;
     }
@@ -307,112 +267,12 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     const loadData = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([fetchAppointments(), fetchBlockedDates()]);
+      await fetchAppointments();
       setLoading(false);
     };
 
     loadData();
-  }, [session, status, fetchAppointments, fetchBlockedDates]);
-
-  const updateAppointmentStatus = useCallback(async (
-    id: string,
-    newStatus: "CONFIRMED" | "REJECTED" | "CANCELLED"
-  ) => {
-    if (!session?.user || !['ADMIN', 'DOCTOR'].includes(session.user.role)) {
-      setError("Access denied: Staff only");
-      return;
-    }
-
-    try {
-      const userRole = session?.user?.role;
-      const updateAppointmentPath = userRole === 'ADMIN' ? '/api/admin/appointment' : '/api/doctor/appointment';
-      const res = await fetch(updateAppointmentPath, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ id, status: newStatus }),
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Failed to update appointment");
-      }
-
-      setAppointments((prev) =>
-        prev.map((appointment) =>
-          appointment.id === id ? { ...appointment, status: newStatus } : appointment
-        )
-      );
-    } catch (err) {
-      console.error("Failed to update appointment", err);
-      alert(err instanceof Error ? err.message : "Failed to update appointment");
-    }
-  }, [session]);
-
-  const handleBlockDates = useCallback(async (
-    startDate: string,
-    endDate: string,
-    reason: string
-  ) => {
-    try {
-      const userRole = session?.user?.role;
-      const blockDatesPath = userRole === 'ADMIN' ? '/api/admin/blocked-dates' : '/api/doctor/blocked-dates';
-      const res = await fetch(blockDatesPath, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate, endDate, reason }),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to block dates");
-      }
-
-      const data = await res.json();
-      alert(
-        `Successfully blocked dates. ${
-          data.cancelledAppointmentsCount || 0
-        } appointments were cancelled.`
-      );
-
-      await fetchBlockedDates();
-      await fetchAppointments();
-    } catch (err) {
-      console.error("Error blocking dates:", err);
-      alert(err instanceof Error ? err.message : "Failed to block dates");
-    }
-  }, [session, fetchBlockedDates, fetchAppointments]);
-
-  const handleUnblockDate = useCallback(async (id: string) => {
-    try {
-      const userRole = session?.user?.role;
-      const unblockPath = userRole === 'ADMIN' ? `/api/admin/blocked-dates?id=${id}` : `/api/doctor/blocked-dates?id=${id}`;
-      const res = await fetch(unblockPath, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to unblock dates");
-      }
-
-      await fetchBlockedDates();
-      alert("Successfully unblocked dates.");
-    } catch (err) {
-      console.error("Error unblocking dates:", err);
-      alert("Failed to unblock dates");
-    }
-  }, [session, fetchBlockedDates]);
-
-  function handleEdit(id: string) {
-    updateAppointmentStatus(id, "CONFIRMED");
-  }
-
-  function handleCancel(id: string) {
-    updateAppointmentStatus(id, "CANCELLED");
-    setSelectedAppointment(null);
-  }
+  }, [session, status, fetchAppointments]);
 
   function prevMonth() {
     setCurrentMonth(
@@ -449,7 +309,7 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   function goToToday() {
     const today = new Date();
     setCurrentMonth(today);
-    setWeekStart(today);
+    setWeekStart(startOfWeek(today));
     setView("day");
   }
 
@@ -458,7 +318,7 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     currentMonth.getMonth()
   );
 
-  const weekDays = getWeekDays(startOfWeek(weekStart));
+  const weekDays = getWeekDays(weekStart);
 
   const events: CalendarEvent[] = appointments
     .filter((a) => a.status === "CONFIRMED")
@@ -491,23 +351,10 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     (a) => a.status === "CONFIRMED"
   ).length;
 
-  const normalizedBlockedDates = blockedDates.map((date) => ({
-    ...date,
-    startDate:
-      date.startDate instanceof Date
-        ? date.startDate.toISOString()
-        : String(date.startDate),
-    endDate:
-      date.endDate instanceof Date
-        ? date.endDate.toISOString()
-        : String(date.endDate),
-    reason: date.reason ?? "",
-  }));
-
   if (loading || status === "loading") {
     return (
       <div className="bg-white text-gray-900 rounded-2xl p-8 space-y-8 border border-gray-200 shadow-lg">
-        <p className="text-gray-600">Loading...</p>
+        <p className="text-gray-600">Loading doctor appointments...</p>
       </div>
     );
   }
@@ -515,22 +362,23 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   if (error) {
     return (
       <div className="bg-white text-gray-900 rounded-2xl p-8 space-y-4 border border-gray-200 shadow-lg">
-        <h2 className="text-xl font-semibold text-red-600">Unable to load calendar</h2>
+        <h2 className="text-xl font-semibold text-red-600">
+          Unable to load calendar
+        </h2>
         <p className="text-gray-600">{error}</p>
-    </div>
+      </div>
     );
   }
 
   return (
     <div className="bg-white text-gray-900 rounded-2xl p-8 space-y-8 border border-gray-200 shadow-lg">
-      {/* WELCOME */}
       <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h3 className="text-gray-900 font-semibold text-xl">
-            Good day, {session?.user?.name || "Admin"}!
+            Good day, {session?.user?.name || "Doctor"}!
           </h3>
           <p className="text-gray-600 text-base mt-1">
-            {confirmedCount} confirmed appointments scheduled
+            {confirmedCount} confirmed appointments scheduled for you
           </p>
         </div>
         <button
@@ -541,17 +389,15 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         </button>
       </div>
 
-      {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <CalendarDays className="w-7 h-7 text-emerald-600" />
-            Schedule
+            Your Schedule
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {view === "month"
               ? `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`
-
               : view === "week"
               ? `Week of ${weekStart.toLocaleDateString("en-US", {
                   month: "short",
@@ -566,7 +412,6 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* NAV */}
           <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
             <button
               onClick={goToToday}
@@ -595,43 +440,34 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
             )}
           </div>
 
-          {/* VIEW SWITCH */}
           <div className="flex bg-gray-50 rounded-xl p-0.5 border border-gray-100 shadow-sm">
             {(["month", "week"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex-1
-                  ${
-                    view === v
-                      ? "bg-emerald-600 text-white shadow-md hover:shadow-lg"
-                      : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
-                  }`}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex-1 ${
+                  view === v
+                    ? "bg-emerald-600 text-white shadow-md hover:shadow-lg"
+                    : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                }`}
               >
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
           </div>
 
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-          >
-            <Inbox size={16} />
-            Requests
-          </button>
-
-          <button
-            onClick={() => setBlockDatesModalOpen(true)}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-          >
-            <CalendarOff size={16} />
-            Block Dates
-          </button>
+          {requests.length > 0 && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+            >
+              <Inbox size={16} />
+              {requests.length} Pending
+            </button>
+          )}
         </div>
       </div>
 
-      {/* MONTH VIEW */}
       {view === "month" && (
         <div className="grid grid-cols-7 gap-px bg-gray-100 p-4 rounded-2xl border border-gray-200 shadow-sm">
           {days.map((d) => (
@@ -645,29 +481,21 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
           {monthGrid.map((day) => {
             const sundayClosed = isSunday(day);
-            const blockedInfo = getBlockedInfo(day, blockedDates);
-            const blocked = !!blockedInfo;
-            const closed = sundayClosed || blocked;
             const dayEvents = events.filter((e) => isSameDay(e.date, day));
 
             return (
               <div
                 key={day.toISOString()}
-                className={`relative h-40 border border-gray-200 bg-white hover:shadow-md transition-all duration-200 group
-                  ${
-                    blocked
-                      ? "bg-linear-to-br from-orange-50 to-red-50 border-orange-200"
-                      : sundayClosed
-                      ? "bg-linear-to-br from-red-50 to-rose-50 border-red-200 opacity-75"
-                      : ""
-                  }`}
+                className={`relative h-40 border border-gray-200 bg-white hover:shadow-md transition-all duration-200 group ${
+                  sundayClosed
+                    ? "bg-gradient-to-br from-red-50 to-rose-50 border-red-200 opacity-75"
+                    : ""
+                }`}
               >
                 <div className="absolute top-2 left-3 z-10 flex flex-wrap items-center gap-2">
                   <span
                     className={`text-lg font-bold px-2 py-1 rounded-full ${
-                      blocked
-                        ? "bg-orange-100 text-orange-700"
-                        : sundayClosed
+                      sundayClosed
                         ? "bg-red-100 text-red-700"
                         : "bg-emerald-100 text-emerald-700"
                     }`}
@@ -675,27 +503,15 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
                     {day.getDate()}
                   </span>
 
-                  {sundayClosed && !blocked && (
+                  {sundayClosed && (
                     <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
                       Closed
-                    </span>
-                  )}
-
-                  {blocked && (
-                    <span className="text-xs font-semibold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
-                      Blocked
                     </span>
                   )}
                 </div>
 
                 <div className="pt-10 pb-3 px-3 space-y-2 overflow-y-auto max-h-full">
-                  {blocked && (
-                    <div className="text-xs text-orange-700 bg-orange-100 border border-orange-200 rounded-lg p-2">
-                      {blockedInfo?.reason || "Unavailable"}
-                    </div>
-                  )}
-
-                  {!closed &&
+                  {!sundayClosed &&
                     dayEvents.map((e) => (
                       <div
                         key={e.id}
@@ -724,7 +540,7 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
                       </div>
                     ))}
 
-                  {!closed && dayEvents.length === 0 && (
+                  {!sundayClosed && dayEvents.length === 0 && (
                     <div className="text-xs text-gray-400 text-center py-4">
                       No appointments
                     </div>
@@ -736,36 +552,25 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         </div>
       )}
 
-      {/* WEEK VIEW */}
       {view === "week" && (
         <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
           <div className="grid grid-cols-[90px_repeat(7,160px)] border-b border-gray-200 bg-gray-50">
-            <div className="h-12 border-r border-gray-200"></div>
+            <div className="h-12 border-r border-gray-200" />
 
             {weekDays.map((day) => {
               const sundayClosed = isSunday(day);
-              const blockedInfo = getBlockedInfo(day, blockedDates);
-              const blocked = !!blockedInfo;
 
               return (
                 <div
                   key={day.toISOString()}
-                  className={`h-12 flex flex-col items-center justify-center border-r border-gray-200 text-sm font-semibold
-                    ${
-                      blocked
-                        ? "bg-orange-50 text-orange-700"
-                        : sundayClosed
-                        ? "bg-red-50 text-red-600"
-                        : "text-gray-700"
-                    }`}
+                  className={`h-12 flex flex-col items-center justify-center border-r border-gray-200 text-sm font-semibold ${
+                    sundayClosed ? "bg-red-50 text-red-600" : "text-gray-700"
+                  }`}
                 >
                   <span>
                     {days[day.getDay()]} {day.getDate()}
                   </span>
-                  {blocked && <span className="text-[10px]">Blocked</span>}
-                  {!blocked && sundayClosed && (
-                    <span className="text-[10px]">Closed</span>
-                  )}
+                  {sundayClosed && <span className="text-[10px]">Closed</span>}
                 </div>
               );
             })}
@@ -785,20 +590,11 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
             {weekDays.map((day) => {
               const sundayClosed = isSunday(day);
-              const blockedInfo = getBlockedInfo(day, blockedDates);
-              const blocked = !!blockedInfo;
-              const closed = sundayClosed || blocked;
 
               return (
                 <div
                   key={day.toISOString()}
-                  className={`border-r border-gray-200 ${
-                    blocked
-                      ? "bg-orange-50"
-                      : sundayClosed
-                      ? "bg-red-50"
-                      : ""
-                  }`}
+                  className={`border-r border-gray-200 ${sundayClosed ? "bg-red-50" : ""}`}
                 >
                   {clinicHours.map(({ hour }) => {
                     const hourEvents = events.filter(
@@ -810,13 +606,13 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
                         key={hour}
                         className="h-28 border-b border-gray-100 flex flex-col items-start justify-start gap-1 p-2 min-h-[112px]"
                       >
-                        {blocked && hour === clinicHours[0].hour && (
-                          <div className="text-xs text-orange-700 bg-orange-100 border border-orange-200 rounded-lg p-2 w-full">
-                            {blockedInfo?.reason || "Unavailable"}
+                        {sundayClosed && hour === clinicHours[0].hour && (
+                          <div className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg p-2">
+                            Clinic is closed on Sundays.
                           </div>
                         )}
 
-                        {!closed &&
+                        {!sundayClosed &&
                           hourEvents.map((e) => (
                             <div
                               key={e.id}
@@ -854,11 +650,10 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         </div>
       )}
 
-      {/* DAY VIEW */}
       {view === "day" && (
         <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
           <div className="grid grid-cols-[100px_1fr] border-b border-gray-200">
-            <div className="h-10 border-r border-gray-200 bg-gray-50"></div>
+            <div className="h-10 border-r border-gray-200 bg-gray-50" />
             <div className="h-10 text-center text-xs font-semibold text-gray-700 flex items-center justify-center">
               {days[weekStart.getDay()]} {weekStart.getDate()}
             </div>
@@ -879,35 +674,24 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
             <div>
               {clinicHours.map(({ hour }) => {
                 const sundayClosed = isSunday(weekStart);
-                const blockedInfo = getBlockedInfo(weekStart, blockedDates);
-                const blocked = !!blockedInfo;
-                const closed = sundayClosed || blocked;
-
                 const hourEvents = events.filter(
-                  (e) =>
-                    isSameDay(e.date, weekStart) && e.date.getHours() === hour
+                  (e) => isSameDay(e.date, weekStart) && e.date.getHours() === hour
                 );
 
                 return (
                   <div
                     key={hour}
                     className={`h-28 border-b border-gray-100 flex flex-col gap-2 p-3 ${
-                      blocked ? "bg-orange-50" : sundayClosed ? "bg-red-50" : ""
+                      sundayClosed ? "bg-red-50" : ""
                     }`}
                   >
-                    {blocked && hour === clinicHours[0].hour && (
-                      <div className="text-xs text-orange-700 bg-orange-100 border border-orange-200 rounded-lg p-2">
-                        {blockedInfo?.reason || "Unavailable"}
-                      </div>
-                    )}
-
-                    {!blocked && sundayClosed && hour === clinicHours[0].hour && (
+                    {sundayClosed && hour === clinicHours[0].hour && (
                       <div className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg p-2">
                         Clinic is closed on Sundays.
                       </div>
                     )}
 
-                    {!closed &&
+                    {!sundayClosed &&
                       hourEvents.map((e) => (
                         <div
                           key={e.id}
@@ -943,19 +727,9 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         </div>
       )}
 
-      {/* REQUESTS MODAL */}
-      {modalOpen && (
-        <AppointmentRequestsModal
-          newBookings={requests}
-          setOpenModal={setModalOpen}
-          menuOpenId={menuOpenId}
-          setMenuOpenId={setMenuOpenId}
-          handleEdit={handleEdit}
-          handleCancel={handleCancel}
-        />
-      )}
+      {/* Pending requests modal removed - not needed for doctor view */}
 
-      {/* APPOINTMENT DETAILS MODAL */}
+
       {selectedAppointment && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-2xl text-gray-900 p-6 w-full max-w-md border border-gray-200">
@@ -983,10 +757,7 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
               <div>
                 <p className="text-xs text-gray-500">Date & Time</p>
                 <p className="font-medium">
-                  {new Date(
-                    selectedAppointment.appointmentDate
-                  ).toLocaleDateString()}{" "}
-                  at{" "}
+                  {new Date(selectedAppointment.appointmentDate).toLocaleDateString()} at{" "}
                   {selectedAppointment.appointmentTime ||
                     formatTime(buildAppointmentDateTime(selectedAppointment))}
                 </p>
@@ -997,28 +768,14 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
                 <p className="font-medium">{selectedAppointment.status}</p>
               </div>
 
-              <div className="pt-4 flex gap-2">
-                <button
-                  onClick={() => handleCancel(selectedAppointment.id)}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
-                  Cancel Appointment
-                </button>
+              <div className="pt-4">
+                <p className="text-xs text-gray-500 italic">
+                  Doctor view - no edit permissions
+                </p>
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* BLOCK DATES MODAL */}
-      {blockDatesModalOpen && (
-        <BlockDatesModal
-          isOpen={blockDatesModalOpen}
-          onClose={() => setBlockDatesModalOpen(false)}
-          blockedDates={normalizedBlockedDates}
-          onBlockDates={handleBlockDates}
-          onUnblockDate={handleUnblockDate}
-        />
       )}
     </div>
   );

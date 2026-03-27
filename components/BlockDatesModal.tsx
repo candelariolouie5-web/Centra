@@ -135,10 +135,11 @@ export default function BlockDatesModal({
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
+<label htmlFor="start-date" className="mb-2 block text-sm font-medium text-slate-700">
                     Start date
                   </label>
                   <input
+                    id="start-date"
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
@@ -147,10 +148,11 @@ export default function BlockDatesModal({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
+<label htmlFor="end-date" className="mb-2 block text-sm font-medium text-slate-700">
                     End date
                   </label>
                   <input
+                    id="end-date"
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
@@ -160,10 +162,11 @@ export default function BlockDatesModal({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
+<label htmlFor="reason" className="mb-2 block text-sm font-medium text-slate-700">
                   Reason
                 </label>
                 <textarea
+                  id="reason"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={4}

@@ -18,22 +18,63 @@ const Icon = ({ name, className }: { name: string; className?: string }) => {
       </svg>
     ),
   };
+
   return icons[name] || null;
+};
+
+/* ---------------- UTILS ---------------- */
+
+const displayValue = (value?: string | null) => {
+  if (!value || String(value).trim() === "") return "Not provided";
+  return value;
 };
 
 /* ---------------- FIELD ---------------- */
 
-const Field = ({ label, value }: { label: string; value?: string }) => (
-  <div>
-    <p className="text-xs text-gray-500 uppercase">{label}</p>
-    <p className="text-sm font-semibold text-gray-900">{value || "-"}</p>
+const Field = ({ label, value }: { label: string; value?: string | null }) => (
+  <div className="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+      {label}
+    </p>
+    <p className="mt-2 text-[15px] font-semibold leading-6 text-slate-950 break-words">
+      {displayValue(value)}
+    </p>
   </div>
 );
 
 /* ---------------- PLACEHOLDER ---------------- */
 
 const Placeholder = ({ text }: { text: string }) => (
-  <div className="text-gray-400 text-center py-10 text-sm">{text}</div>
+  <div className="rounded-2xl bg-white px-6 py-12 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
+    {text}
+  </div>
+);
+
+/* ---------------- SECTION ---------------- */
+
+const SectionCard = ({
+  title,
+  subtitle,
+  right,
+  children,
+}: {
+  title?: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
+    {(title || right) && (
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          {title && <h3 className="text-lg font-bold text-slate-950">{title}</h3>}
+          {subtitle && <p className="mt-1 text-sm font-medium text-slate-700">{subtitle}</p>}
+        </div>
+        {right}
+      </div>
+    )}
+    {children}
+  </section>
 );
 
 /* ---------------- VITAL SIGNS ---------------- */
@@ -49,21 +90,25 @@ const VitalSigns = () => {
   ];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-      <h3 className="font-semibold text-gray-800 mb-4">Vital Signs</h3>
-
-      <div className="grid grid-cols-3 gap-4">
+    <SectionCard
+      title="Vital Signs"
+      subtitle="Latest captured measurements for this patient."
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {vitals.map((vital) => (
-          <div key={vital.label} className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500 mb-1">{vital.label}</p>
-            <p className="text-lg font-bold text-gray-900">
-              {vital.value}
-              <span className="text-xs text-gray-500 ml-1">{vital.unit}</span>
-            </p>
+          <div
+            key={vital.label}
+            className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200/70"
+          >
+            <p className="text-xs font-semibold text-slate-700">{vital.label}</p>
+            <div className="mt-2 flex items-end gap-2">
+              <p className="text-2xl font-bold tracking-tight text-slate-950">{vital.value}</p>
+              <span className="pb-1 text-xs font-semibold text-slate-700">{vital.unit}</span>
+            </div>
           </div>
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 };
 
@@ -111,7 +156,9 @@ const PatientDetailsModal = ({
     setLoadingMedicalHistory(true);
 
     try {
-      const response = await fetch(`/api/admin/patients/${patient.id}/medical-history`);
+      const userRole = typeof window !== 'undefined' ? (window as any).session?.user?.role : 'ADMIN';
+      const apiPath = userRole === 'ADMIN' ? `/api/admin/patients/${patient.id}/medical-history` : `/api/doctor/patients/${patient.id}/medical-history`;
+      const response = await fetch(apiPath);
       const data = await response.json();
 
       if (response.ok) {
@@ -134,157 +181,215 @@ const PatientDetailsModal = ({
   ];
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="w-[1100px] max-h-[95vh] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] bg-slate-50 shadow-2xl ring-1 ring-slate-200">
         {/* HEADER */}
 
-        <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-lg">
-              {patient.name?.charAt(0)}
+        <div className="border-b border-slate-200 bg-white px-6 py-5 sm:px-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-lg font-bold text-white shadow-sm">
+                {patient.name?.charAt(0) || "P"}
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-bold tracking-tight text-slate-950">
+                  {patient.name || "Patient Details"}
+                </h2>
+                <p className="mt-1 truncate text-sm font-medium text-slate-700">
+                  {displayValue(patient.email)}
+                </p>
+              </div>
             </div>
 
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">{patient.name}</h2>
-              <p className="text-sm text-gray-500">{patient.email}</p>
-            </div>
+            <button
+              onClick={onClose}
+              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Icon name="close" className="h-5 w-5" />
+            </button>
           </div>
 
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-200">
-            <Icon name="close" className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+          {/* TABS */}
 
-        {/* TABS */}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {tabs.map((t) => {
+              const active = tab === t.id;
 
-        <div className="flex gap-1 px-6 border-b bg-gray-50">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
-                tab === t.id
-                  ? "text-teal-600 border-teal-600 bg-white"
-                  : "text-gray-500 border-transparent hover:text-gray-800"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    active
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-950"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* CONTENT */}
 
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-
+        <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-7">
           {tab === "info" && (
             <div className="space-y-6">
-
               <VitalSigns />
 
-              <div className="bg-white border rounded-xl p-6 shadow-sm grid grid-cols-2 gap-6">
-                <Field label="Age" value={patient.age} />
-                <Field label="Gender" value={patient.gender} />
-                <Field label="Mobile Number" value={patient.phone} />
-                <Field label="Address" value={patient.address} />
-                <Field label="Email Address" value={patient.email} />
-              </div>
-
+              <SectionCard
+                title="Patient Information"
+                subtitle="Basic profile and contact details."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Age" value={patient.age} />
+                  <Field label="Gender" value={patient.gender} />
+                  <Field label="Mobile Number" value={patient.phone} />
+                  <Field label="Address" value={patient.address} />
+                  <Field label="Email Address" value={patient.email} />
+                </div>
+              </SectionCard>
             </div>
           )}
 
           {tab === "notes" && (
-            <div className="bg-white border rounded-xl p-6 shadow-sm">
+            <SectionCard
+              title="Patient Notes"
+              subtitle="Clinical notes, observations, and attached records."
+            >
               <PatientNotes patient={patient} />
-            </div>
+            </SectionCard>
           )}
 
           {tab === "treatment" && (
-            <div className="bg-white border rounded-xl p-6 shadow-sm">
-              <Placeholder text="Next treatment information will appear here." />
-            </div>
+            <SectionCard
+              title="Next Treatment"
+              subtitle="Planned treatment and follow-up details."
+            >
+              {(!patient?.soapNote?.plan && !patient?.soapNote?.followUp) ? (
+                <Placeholder text="No next treatment details available" />
+              ) : (
+                <div className="px-4 sm:px-0">
+                  <dl className="divide-y divide-white/10">
+                    {patient?.soapNote?.plan && (
+                      <div className="grid grid-cols-3 gap-4 py-6 px-4">
+                        <dt className="text-sm font-medium text-gray-500">Plan</dt>
+                        <dd className="col-span-2 text-sm text-gray-400">
+                          {patient.soapNote.plan || "—"}
+                        </dd>
+                      </div>
+                    )}
+                    {patient?.soapNote?.followUp && (
+                      <div className="grid grid-cols-3 gap-4 py-6 px-4">
+                        <dt className="text-sm font-medium text-gray-500">Follow-up</dt>
+                        <dd className="col-span-2 text-sm text-gray-400">
+                          {patient.soapNote.followUp || "—"}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
+            </SectionCard>
           )}
 
           {tab === "medical" && (
-            <div className="bg-white border rounded-xl p-6 shadow-sm">
-
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2">
-                  <Icon name="medical" className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-gray-800">Medical History</h3>
-                </div>
-
+            <SectionCard
+              title="Medical History"
+              subtitle="Past records, results, remarks, and uploaded photos."
+              right={
                 <button
                   onClick={onCreateMedicalHistory}
-                  className="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium"
+                  className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
                 >
                   + Create Medical History
                 </button>
-              </div>
-
+              }
+            >
               {loadingMedicalHistory ? (
-                <p className="text-gray-400 text-center py-6">
+                <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
                   Loading medical histories...
-                </p>
+                </div>
               ) : medicalHistories.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">
+                <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
                   No medical history records found
-                </p>
+                </div>
               ) : (
                 <div className="space-y-4">
-
                   {medicalHistories.map((record) => (
                     <div
                       key={record.id}
-                      className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                      className="overflow-hidden rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80"
                     >
-
-                      <div className="flex justify-between">
-                        <div>
-                          <h4 className="font-semibold text-gray-900">
-                            {record.type}
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <h4 className="text-base font-bold text-slate-950">
+                            {displayValue(record.type)}
                           </h4>
 
-                          <p className="text-sm text-gray-500">
-                            Date: {new Date(record.resultDate + "T12:00:00").toLocaleDateString()}
-                            {record.lab && ` • Lab: ${record.lab}`}
-                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-800">
+                            <span>
+                              Result Date:{" "}
+                              <span className="font-semibold text-slate-950">
+                                {new Date(record.resultDate + "T12:00:00").toLocaleDateString()}
+                              </span>
+                            </span>
+
+                            {record.lab && (
+                              <span>
+                                Lab:{" "}
+                                <span className="font-semibold text-slate-950">{record.lab}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <span className="text-xs text-gray-400">
-                          {new Date(record.createdAt).toLocaleDateString()}
-                        </span>
+                        <div className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                          Added {new Date(record.createdAt).toLocaleDateString()}
+                        </div>
                       </div>
 
-                      <p className="text-gray-700 mt-3">{record.remarks}</p>
+                      <div className="mt-4 rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200/80">
+                        <p className="text-sm font-medium leading-6 text-slate-900">
+                          {displayValue(record.remarks)}
+                        </p>
+                      </div>
 
                       {record.photos && record.photos.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-4">
-                          {record.photos.map((photo, index) => (
-                            <img
-                              key={index}
-                              src={photo}
-                              alt={`Medical record ${index}`}
-                              className="w-20 h-20 object-cover rounded-lg border"
-                            />
-                          ))}
+                        <div className="mt-4">
+                          <p className="mb-3 text-sm font-semibold text-slate-900">
+                            Attached Photos
+                          </p>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                            {record.photos.map((photo, index) => (
+                              <div
+                                key={index}
+                                className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200"
+                              >
+                                <img
+                                  src={photo}
+                                  alt={`Medical record ${index + 1}`}
+                                  className="h-32 w-full object-cover"
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
-
                     </div>
                   ))}
-
                 </div>
               )}
-            </div>
+            </SectionCard>
           )}
 
         </div>
-
       </div>
     </div>
   );
 };
 
-export default PatientDetailsModal; 
+export default PatientDetailsModal;

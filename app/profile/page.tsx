@@ -11,7 +11,7 @@ export default async function ProfilePage() {
   }
 
   if (session.user.role === "doctor") {
-    redirect("/doctors/dashboard");
+    redirect("/doctor/dashboard");
   }
   if (session.user.role === "ADMIN") {
     redirect("/admin/dashboard");

@@ -3,26 +3,39 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "DOCTOR") {
+
+    if (!session?.user?.id || session.user.role !== "DOCTOR") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const doctor = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, role: true },
+    });
+
+    if (!doctor || doctor.role !== "DOCTOR") {
+      return NextResponse.json({ error: "Doctor not found" }, { status: 403 });
+    }
 
     const appointments = await prisma.appointment.findMany({
       where: {
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
         appointmentDate: {
-          gte: today,
-          lt: tomorrow,
+          gte: startOfDay,
+          lt: endOfDay,
         },
         status: {
-          in: ['CONFIRMED', 'ACCEPTED', 'PENDING'],
+          in: ["PENDING", "CONFIRMED", "ACCEPTED"],
         },
       },
       select: {
@@ -31,9 +44,10 @@ export async function GET(request: NextRequest) {
         appointmentTime: true,
         serviceType: true,
         status: true,
+        patientId: true,
       },
       orderBy: {
-        appointmentTime: 'asc',
+        appointmentTime: "asc",
       },
     });
 
@@ -43,4 +57,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

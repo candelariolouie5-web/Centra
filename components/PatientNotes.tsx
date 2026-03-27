@@ -19,60 +19,43 @@ const PatientNotes = ({ patient }: any) => {
               Chief Complaints
             </dt>
             <dd className="col-span-2 text-sm text-gray-400">
-              {patient?.chiefComplaints || "—"}
+              {patient?.soapNote?.chiefComplaint || "—"}
+            </dd>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 px-4 py-6">
+            <dt className="text-sm font-medium text-gray-500">
+              History of Present Illness
+            </dt>
+            <dd className="col-span-2 text-sm text-gray-400">
+              {patient?.soapNote?.historyOfIllness || "—"}
             </dd>
           </div>
 
           <div className="grid grid-cols-3 gap-4 px-4 py-6">
             <dt className="text-sm font-medium text-gray-500">Remarks</dt>
             <dd className="col-span-2 text-sm text-gray-400">
-              {patient?.remarks || "—"}
+              {patient?.soapNote?.remarks || "—"}
             </dd>
           </div>
 
           <div className="grid grid-cols-3 gap-4 px-4 py-6">
-            <dt className="text-sm font-medium text-gray-500">Notes</dt>
-            <dd className="col-span-2 text-sm text-gray-400">
-              {patient?.notes || "—"}
-            </dd>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 px-4 py-6">
-            <dt className="text-sm font-medium text-gray-500">Attachments</dt>
-            <dd className="col-span-2">
-              {patient?.attachments?.length ? (
-                <ul className="divide-y divide-white/5 rounded-md border border-white/10">
-                  {patient.attachments.map((file: any, idx: number) => (
-                    <li
-                      key={idx}
-                      className="flex items-center justify-between px-4 py-4"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <PaperClipIcon className="h-5 w-5 text-gray-500" />
-                        <span className="truncate text-sm font-medium text-black">
-                          {file.name}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          {file.size || "—"}
-                        </span>
-                      </div>
-
-                      <a
-                        href={file.url || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
-                      >
-                        Download
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-400">No attachments</p>
+            <dt className="text-sm font-medium text-gray-500">Diagnosis / Notes</dt>
+            <dd className="col-span-2 text-sm text-gray-400 space-y-2">
+              <p>{patient?.soapNote?.diagnosis || "—"}</p>
+              {patient?.soapNote?.imageData && (
+                <div className="mt-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  <img 
+                    src={patient.soapNote.imageData} 
+                    alt="Diagnostic image"
+                    className="max-h-48 w-full max-w-sm object-contain rounded shadow-sm mx-auto block"
+                  />
+                </div>
               )}
             </dd>
           </div>
+
+
         </dl>
       </div>
     </div>

@@ -197,7 +197,7 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
                   <Stethoscope className="h-4 w-4" />
-                  Hospital Management Overview
+                  Centra Clinic Overview
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
                   Welcome back, {session?.user?.name || "Doctor"} 👋

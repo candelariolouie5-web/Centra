@@ -79,8 +79,8 @@ export default function AppointmentRequestsModal({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">
                 Clinic Management
               </p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight">
-                Appointment Requests
+<h2 className="mt-2 text-2xl font-bold tracking-tight">
+                Manage Appointments
               </h2>
               <p className="mt-1 text-sm text-cyan-50/90">
                 Review and manage incoming patient appointment requests.
@@ -105,12 +105,11 @@ export default function AppointmentRequestsModal({
               <span className="ml-1 font-bold text-slate-900">{newBookings.length}</span>
             </div>
             <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-              Pending:{" "}
+            Active:{" "}
               <span className="ml-1 font-bold">
                 {
                   newBookings.filter(
-                    (booking) =>
-                      booking.status !== "CONFIRMED" && booking.status !== "ACCEPTED"
+                    (booking) => booking.status === "CONFIRMED" || booking.status === "ACCEPTED"
                   ).length
                 }
               </span>
@@ -214,7 +213,7 @@ export default function AppointmentRequestsModal({
 
                   {/* Actions */}
                   <div className="col-span-1 flex items-center justify-end gap-2">
-                    {r.status === "PENDING" && (
+{false && (
                       <button
                         onClick={() => handleEdit(r.id)}
                         className="rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-md shadow-blue-500/20 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-cyan-700"

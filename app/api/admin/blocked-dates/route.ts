@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           lte: end,
         },
         status: {
-          in: ["PENDING", "CONFIRMED", "ACCEPTED"],
+          in: ["CONFIRMED", "ACCEPTED"],
         },
       },
     });

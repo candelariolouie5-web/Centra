@@ -7,28 +7,27 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
-if (!session || !session.user?.email) {
+  if (!session || !session.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is admin
+  // Check if user is doctor
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { role: true },
+    select: { id: true, role: true },
   });
 
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-  if (user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden: Admin only for this endpoint" }, { status: 403 });
+  if (!user || user.role !== "DOCTOR") {
+    return NextResponse.json({ error: "Forbidden: Doctor role required" }, { status: 403 });
   }
 
+  const doctorId = user.id;
+
   try {
-    console.log("[SOAP-REQUEST]", { url: request.url, method: request.method });
+    console.log("[DOCTOR-SOAP-REQUEST]", { url: request.url, method: request.method });
     
     const body = await request.json();
-    console.log("[SOAP-BODY]", {
+    console.log("[DOCTOR-SOAP-BODY]", {
       patientId: body.patientId,
       hasPrescriptions: !!body.prescriptions?.length,
       fields: Object.keys(body).filter(k => !['prescriptions'].includes(k))
@@ -54,13 +53,13 @@ if (!session || !session.user?.email) {
       return NextResponse.json({ error: "Patient ID must be a non-empty string" }, { status: 400 });
     }
 
-    // Check if patient exists (Admin scope: any patient with ADMIN assignment)
+    // Doctor scope: Patient must have appointment assigned to this doctor
     const patientWithScope = await prisma.patient.findFirst({
       where: {
         id: patientId,
         appointments: {
           some: {
-            assignedToRole: "ADMIN",
+            assignedToUserId: doctorId,
             status: {
               in: ["PENDING", "CONFIRMED", "ACCEPTED"]
             }
@@ -72,11 +71,11 @@ if (!session || !session.user?.email) {
 
     if (!patientWithScope) {
       return NextResponse.json({ 
-        error: `Patient not found or not in admin scope: ${patientId}` 
+        error: `Patient not found or not assigned to you: ${patientId}` 
       }, { status: 403 });
     }
 
-    // Check if a SOAP note already exists for this patient
+    // Check if a SOAP note already exists for this patient (upsert logic)
     const existingSoapNote = await prisma.soapNote.findFirst({
       where: { patientId },
       orderBy: { createdAt: "desc" },
@@ -155,7 +154,7 @@ if (!session || !session.user?.email) {
 
     return NextResponse.json({ message: "SOAP note saved successfully", soapNoteId: soapNote!.id });
   } catch (error: any) {
-    console.error("[SOAP-NOTE-ERROR]", {
+    console.error("[DOCTOR-SOAP-NOTE-ERROR]", {
       message: error.message,
       stack: error.stack,
       name: error.name,
@@ -183,14 +182,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is admin
+  // Check if user is doctor
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: { role: true },
   });
 
-  if (user?.role !== "ADMIN" && user?.role !== "DOCTOR") {
-    return NextResponse.json({ error: "Forbidden: Admin or Doctor role required" }, { status: 403 });
+  if (user?.role !== "DOCTOR") {
+    return NextResponse.json({ error: "Forbidden: Doctor role required" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -201,6 +200,27 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Doctor scope check
+    const doctorScopePatient = await prisma.patient.findFirst({
+      where: {
+        id: patientId,
+        appointments: {
+          some: {
+            assignedToUserId: user.id,
+            status: {
+              in: ["PENDING", "CONFIRMED", "ACCEPTED"]
+            }
+          }
+        }
+      },
+    });
+
+    if (!doctorScopePatient) {
+      return NextResponse.json({ 
+        error: `Patient not assigned to you: ${patientId}` 
+      }, { status: 403 });
+    }
+
     // Get SOAP notes for the patient
     const soapNotes = await prisma.soapNote.findMany({
       where: { patientId },
@@ -216,3 +236,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch SOAP notes" }, { status: 500 });
   }
 }
+

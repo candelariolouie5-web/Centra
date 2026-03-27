@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FieldBlock, ActionChips } from "./UIHelpers";
+import { useEffect, useMemo, useState } from "react";
+import { ActionChips } from "./UIHelpers";
 import PrescriptionModal, { Prescription } from "./PrescriptionModal";
 import HeadTemplateModal from "./HeadTemplateModal";
 import EducationalMaterialModal from "./EducationalMaterialModal";
 import { EducationalMaterial } from "@/types/EducationalMaterial";
 import html2canvas from "html2canvas";
+import ClinicalRoom from "./ClinicalRoom";
 import jsPDF from "jspdf";
 
 type Patient = {
@@ -18,6 +19,249 @@ type Diagnostic = {
   imageData: string;
   strokes: Record<string, Record<string, { strokes: any[][] }>>;
 };
+
+type RoomType = "ENT" | "Aesthetics" | "Consultation";
+
+type ScheduledProcedure = {
+  procedureType: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  room?: RoomType | string | null;
+  notes?: string;
+  doctor?: string;
+  estimatedTime?: string;
+};
+
+type TextAreaFieldProps = {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  rows?: number;
+};
+
+const ROOM_LABELS: Record<RoomType, string> = {
+  ENT: "ENT Room",
+  Aesthetics: "Aesthetics Room",
+  Consultation: "Consultation Room",
+};
+
+const PROCEDURE_LABELS: Record<string, string> = {
+  ear: "Ear",
+  nose: "Nose",
+  throat: "Throat",
+  aesthetics: "Aesthetics",
+  consultation: "Consultation",
+  ent: "ENT",
+};
+
+const FOLLOW_UP_MARKER = "Follow-up appointment:";
+
+function TextAreaField({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  rows = 4,
+}: TextAreaFieldProps) {
+  return (
+    <div className="space-y-2">
+      <label
+        htmlFor={id}
+        className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500"
+      >
+        {label}
+      </label>
+      <textarea
+        id={id}
+        name={id}
+        title={label}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+      />
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  accent,
+  subtitle,
+  children,
+}: {
+  title: string;
+  accent: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-[0_12px_35px_rgba(15,23,42,0.06)] backdrop-blur">
+      <div className="mb-4 flex items-start gap-3">
+        <div className={`mt-1 h-10 w-1.5 rounded-full ${accent}`} />
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-800">
+            {title}
+          </h3>
+          {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PreviewBlock({
+  title,
+  value,
+  empty,
+}: {
+  title: string;
+  value: string;
+  empty: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {title}
+      </p>
+      <p className="min-h-[20px] whitespace-pre-wrap text-sm leading-6 text-slate-700">
+        {value || <span className="italic text-slate-300">{empty}</span>}
+      </p>
+    </div>
+  );
+}
+
+function isRoomType(value: unknown): value is RoomType {
+  return value === "ENT" || value === "Aesthetics" || value === "Consultation";
+}
+
+function formatProcedureLabel(value: string | undefined | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "Procedure";
+
+  const normalized = trimmed.toLowerCase();
+  if (PROCEDURE_LABELS[normalized]) {
+    return PROCEDURE_LABELS[normalized];
+  }
+
+  return trimmed
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatDisplayDate(value: string) {
+  if (!value) return "Date TBD";
+
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDisplayTime(value: string) {
+  if (!value) return "Time TBD";
+
+  if (/[AP]M/i.test(value)) {
+    return value.toUpperCase();
+  }
+
+  if (/^\d{1,2}:\d{2}$/.test(value)) {
+    const [hours, minutes] = value.split(":").map(Number);
+    const parsed = new Date();
+    parsed.setHours(hours, minutes, 0, 0);
+
+    return parsed.toLocaleTimeString("en-PH", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
+  return value;
+}
+
+function formatRoomLabel(value?: string | RoomType | null) {
+  if (!value) return "Auto-assign room";
+  if (isRoomType(value)) return ROOM_LABELS[value];
+  return value;
+}
+
+function buildScheduleSummary(schedule: ScheduledProcedure) {
+  const procedurePart = schedule.procedureType
+    ? `${formatProcedureLabel(schedule.procedureType)} procedure`
+    : "Procedure";
+
+  const datePart = schedule.appointmentDate
+    ? `on ${formatDisplayDate(schedule.appointmentDate)}`
+    : "on a date to be set";
+
+  const timePart = schedule.appointmentTime
+    ? `at ${formatDisplayTime(schedule.appointmentTime)}`
+    : "at a time to be set";
+
+  const roomPart = schedule.room ? `in ${formatRoomLabel(schedule.room)}` : "";
+
+  return [procedurePart, datePart, timePart, roomPart].filter(Boolean).join(" ");
+}
+
+function upsertLine(
+  text: string,
+  nextLine: string,
+  matcher: (line: string) => boolean
+) {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0);
+
+  let replaced = false;
+
+  const updated = lines.map((line) => {
+    if (matcher(line)) {
+      replaced = true;
+      return nextLine;
+    }
+
+    return line;
+  });
+
+  if (!replaced) {
+    updated.push(nextLine);
+  }
+
+  return updated.join("\n");
+}
+
+function removeMatchingLines(text: string, matcher: (line: string) => boolean) {
+  return text
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0 && !matcher(line))
+    .join("\n");
+}
+
+function isFollowUpScheduleLine(line: string) {
+  return line.trim().toLowerCase().startsWith(FOLLOW_UP_MARKER.toLowerCase());
+}
+
+function isPlanScheduleLine(line: string) {
+  return line
+    .trim()
+    .replace(/^[-•]\s*/, "")
+    .toLowerCase()
+    .startsWith(FOLLOW_UP_MARKER.toLowerCase());
+}
 
 const SoapNoteModal = ({
   open,
@@ -31,11 +275,15 @@ const SoapNoteModal = ({
   const [openPrescription, setOpenPrescription] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
   const [open3DModal, setOpen3DModal] = useState(false);
+  const [openRoomModal, setOpenRoomModal] = useState(false);
   const [openEducationalMaterial, setOpenEducationalMaterial] = useState(false);
-  const [selectedMaterials, setSelectedMaterials] = useState<
-    EducationalMaterial[]
-  >([]);
+  const [selectedMaterials, setSelectedMaterials] = useState<EducationalMaterial[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
+  const [scheduledProcedure, setScheduledProcedure] =
+    useState<ScheduledProcedure | null>(null);
 
   const [diagnosis, setDiagnosis] = useState("");
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
@@ -48,50 +296,96 @@ const SoapNoteModal = ({
 
   const [showPreview, setShowPreview] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setDiagnosis(localStorage.getItem("diagnosis") ?? "");
-      setChiefComplaint(localStorage.getItem("chiefComplaint") ?? "");
-      setHistoryOfPresentIllness(
-        localStorage.getItem("historyOfPresentIllness") ?? ""
-      );
-      setRemarks(localStorage.getItem("remarks") ?? "");
-      setPlan(localStorage.getItem("plan") ?? "");
-      setFollowUp(localStorage.getItem("followUp") ?? "");
-    }
-  }, []);
+  const storageKey = useMemo(
+    () => `soap-note:${patient?.id ?? "temp"}`,
+    [patient?.id]
+  );
+
+  const resetDraftFields = () => {
+    setDiagnosis("");
+    setChiefComplaint("");
+    setHistoryOfPresentIllness("");
+    setRemarks("");
+    setPlan("");
+    setFollowUp("");
+    setSelectedRoom(null);
+    setScheduledProcedure(null);
+    setError(null);
+  };
+
+  const clearScheduledProcedure = () => {
+    setScheduledProcedure(null);
+    setSelectedRoom(null);
+    setFollowUp((prev: string) => removeMatchingLines(prev, isFollowUpScheduleLine));
+    setPlan((prev: string) => removeMatchingLines(prev, isPlanScheduleLine));
+  };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("diagnosis", diagnosis);
-      localStorage.setItem("chiefComplaint", chiefComplaint);
-      localStorage.setItem(
-        "historyOfPresentIllness",
-        historyOfPresentIllness
-      );
-      localStorage.setItem("remarks", remarks);
-      localStorage.setItem("plan", plan);
-      localStorage.setItem("followUp", followUp);
+    if (!open || typeof window === "undefined") return;
+
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      resetDraftFields();
+      return;
     }
+
+    try {
+      const parsed = JSON.parse(raw);
+      setDiagnosis(parsed.diagnosis ?? "");
+      setChiefComplaint(parsed.chiefComplaint ?? "");
+      setHistoryOfPresentIllness(parsed.historyOfPresentIllness ?? "");
+      setRemarks(parsed.remarks ?? "");
+      setPlan(parsed.plan ?? "");
+      setFollowUp(parsed.followUp ?? "");
+      setSelectedRoom(
+        parsed.selectedRoom && isRoomType(parsed.selectedRoom)
+          ? parsed.selectedRoom
+          : null
+      );
+      setScheduledProcedure(parsed.scheduledProcedure ?? null);
+      setError(null);
+    } catch {
+      resetDraftFields();
+    }
+  }, [open, storageKey]);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        diagnosis,
+        chiefComplaint,
+        historyOfPresentIllness,
+        remarks,
+        plan,
+        followUp,
+        selectedRoom,
+        scheduledProcedure,
+      })
+    );
   }, [
+    open,
+    storageKey,
     diagnosis,
     chiefComplaint,
     historyOfPresentIllness,
     remarks,
     plan,
     followUp,
+    selectedRoom,
+    scheduledProcedure,
   ]);
 
   if (!open || !patient) return null;
 
   const handleAddOrUpdatePrescription = (rx: Prescription) => {
     if (editingIndex !== null) {
-      setPrescriptions((prev) =>
-        prev.map((p, i) => (i === editingIndex ? rx : p))
-      );
+      setPrescriptions((prev: Prescription[]) => prev.map((p: Prescription, i: number) => (i === editingIndex ? rx : p)));
       setEditingIndex(null);
     } else {
-      setPrescriptions((prev) => [...prev, rx]);
+      setPrescriptions((prev: Prescription[]) => [...prev, rx]);
     }
     setOpenPrescription(false);
   };
@@ -103,51 +397,94 @@ const SoapNoteModal = ({
 
   const handleDelete = (idx: number) => {
     if (confirm("Delete this prescription?")) {
-      setPrescriptions((prev) => prev.filter((_, i) => i !== idx));
+      setPrescriptions((prev: Prescription[]) => prev.filter((_: Prescription, i: number) => i !== idx));
     }
   };
 
   const handleRemoveMaterial = (idx: number) => {
     if (confirm("Remove this educational material?")) {
-      setSelectedMaterials((prev) => prev.filter((_, i) => i !== idx));
+      setSelectedMaterials((prev: EducationalMaterial[]) => prev.filter((_: EducationalMaterial, i: number) => i !== idx));
     }
   };
 
   const handleSaveNote = async () => {
+    setError(null);
     try {
-      const response = await fetch("/api/admin/soap-notes", {
+      console.log("CURRENT SESSION ROLE:", typeof window !== 'undefined' ? (window as any).session?.user?.role || 'NO_SESSION' : 'SERVER_SIDE');
+      
+      const payload = {
+        patientId: patient.id,
+        chiefComplaint,
+        historyOfIllness: historyOfPresentIllness,
+        remarks,
+        diagnosis,
+        plan,
+        followUp,
+        imageData: diagnostics[0]?.imageData || null,
+        prescriptions,
+      };
+      
+      console.log("[SOAP-SAVE-PAYLOAD]", payload);
+
+      const userRole = typeof window !== 'undefined' ? (window as any).session?.user?.role || 'ADMIN' : 'ADMIN';
+      const apiPath = userRole === 'ADMIN' ? '/api/admin/soap-notes' : '/api/doctor/soap-notes';
+      const response = await fetch(apiPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          patientId: patient.id,
-          chiefComplaint,
-          historyOfIllness: historyOfPresentIllness,
-          remarks,
-          diagnosis,
-          plan,
-          followUp,
-          prescriptions,
-        }),
+        body: JSON.stringify(payload),
+      });
+
+      console.log("[SOAP-SAVE-RESPONSE]", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        console.error(err);
-        alert("Failed to save SOAP Note");
+        // Clone response to read body twice
+        const clonedResponse = response.clone();
+        const contentType = response.headers.get('content-type') || '';
+        let jsonErrorData: any = null;
+        let errorTextContent = '';
+
+        if (contentType.includes('application/json')) {
+          try {
+            const jsonText = await clonedResponse.text();
+            console.log("[SOAP-ERROR-RAW]", jsonText);
+            jsonErrorData = jsonText ? JSON.parse(jsonText) : {};
+          } catch (parseErr) {
+            console.error("[SOAP-JSON-PARSE-ERROR]", parseErr);
+          }
+        } else {
+          errorTextContent = await clonedResponse.text();
+          console.log("[SOAP-ERROR-NON-JSON]", errorTextContent.substring(0, 500));
+        }
+
+        console.error("[SOAP-SAVE-ERROR]", {
+          status: response.status,
+          statusText: response.statusText,
+          jsonErrorData,
+          htmlError: !!errorTextContent,
+          errorTextPreview: errorTextContent.substring(0, 200),
+        });
+
+        const errorMessage = jsonErrorData?.error || 
+                            (errorTextContent ? `Server Error (${response.status}): ${errorTextContent.substring(0, 100)}...` : 
+                            `HTTP ${response.status}: ${response.statusText}`);
+        setError(errorMessage);
+        alert(jsonErrorData?.error || `Failed to save SOAP Note: ${errorMessage}`);
         return;
       }
-
-      const data = await response.json();
-      console.log("Saved SOAP Note:", data);
 
       alert("SOAP Note saved successfully!");
       setShowPreview(true);
       onClose();
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
+    } catch (error: any) {
+      console.error("[SOAP-SAVE-CATCH]", error);
+      setError(`Network error: ${error.message}`);
+      alert("Network error - please check connection and try again");
     }
   };
 
@@ -171,179 +508,315 @@ const SoapNoteModal = ({
   };
 
   const handleSaveDiagnostic = (diagnostic: Diagnostic) => {
-    setDiagnostics((prev) => [...prev, diagnostic]);
-    setDiagnosis((prev) =>
-      prev ? `${prev} [Diagnostic image attached]` : "[Diagnostic image attached]"
+    setDiagnostics((prev: Diagnostic[]) => [...prev, diagnostic]);
+    if (!diagnosis.trim()) {
+      setDiagnosis("Diagnostic findings");
+    }
+  };
+
+  const handleRoomSelect = (room: RoomType) => {
+    setSelectedRoom(room);
+
+    if (scheduledProcedure) {
+      setScheduledProcedure((prev) =>
+        prev
+          ? {
+              ...prev,
+              room,
+            }
+          : prev
+      );
+    }
+
+    setOpenRoomModal(false);
+  };
+
+  const handleScheduleProcedure = (data: any) => {
+    // Normalize ClinicalRoomBookingData to ScheduledProcedure
+    const normalized: ScheduledProcedure = {
+      procedureType: data.serviceType || data.procedureType || 'Procedure',
+      appointmentDate: data.appointmentDate || data.date || '',
+      appointmentTime: data.appointmentTime || data.time || '',
+      room: data.room || data.roomType || null,
+      notes: data.notes || '',
+      doctor: patient.name || 'Doctor',
+    };
+
+    const normalizedRoom = normalized.room && isRoomType(normalized.room as any) ? normalized.room as RoomType : null;
+    if (normalizedRoom) setSelectedRoom(normalizedRoom);
+
+    setScheduledProcedure(normalized);
+
+    const summary = buildScheduleSummary(normalized);
+    const nextFollowUpLine = `${FOLLOW_UP_MARKER} ${summary}`;
+    const nextPlanLine = `• ${FOLLOW_UP_MARKER} ${summary}`;
+
+    setFollowUp((prev: string) => upsertLine(prev, nextFollowUpLine, isFollowUpScheduleLine));
+    setPlan((prev: string) => upsertLine(prev, nextPlanLine, isPlanScheduleLine));
+    setOpenRoomModal(false);
+  };
+
+  const selectedRoomLabel = scheduledProcedure?.room
+    ? formatRoomLabel(scheduledProcedure.room)
+    : selectedRoom
+    ? ROOM_LABELS[selectedRoom]
+    : null;
+
+  const renderScheduleSummaryCard = () => {
+    if (!scheduledProcedure) {
+      return (
+        <div className="rounded-2xl border border-dashed border-cyan-200 bg-white px-4 py-4 text-sm text-slate-500">
+          <p className="font-semibold text-slate-700">No follow-up appointment scheduled yet.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Use this order: <span className="font-semibold">Procedure → Date → Time → Room</span>
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+              Scheduled Follow-up
+            </p>
+            <p className="mt-1 text-sm text-emerald-900">
+              {buildScheduleSummary(scheduledProcedure)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={clearScheduledProcedure}
+            className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Clear
+          </button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl bg-white px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Procedure
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {formatProcedureLabel(scheduledProcedure.procedureType)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Date
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {formatDisplayDate(scheduledProcedure.appointmentDate)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Time
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {formatDisplayTime(scheduledProcedure.appointmentTime)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Room
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {selectedRoomLabel ?? "Auto-assign room"}
+            </p>
+          </div>
+        </div>
+      </div>
     );
   };
 
   const renderPreview = () => (
     <div className="space-y-4">
-      <div className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 p-4 text-white shadow-md">
-        <h3 className="text-lg font-bold">SOAP Note Preview</h3>
-        <p className="text-sm text-violet-100">{patient.name}</p>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h4 className="mb-3 text-xs font-bold tracking-widest text-violet-600">
-          SUBJECTIVE
-        </h4>
-        <div className="space-y-3">
+      <div className="rounded-3xl bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 p-5 text-white shadow-lg">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-              Chief Complaint
-            </p>
-            <p className="min-h-5 text-sm text-gray-800">
-              {chiefComplaint || (
-                <span className="italic text-gray-300">
-                  No complaint recorded
-                </span>
-              )}
-            </p>
+            <h3 className="text-lg font-bold">SOAP Note Preview</h3>
+            <p className="text-sm text-cyan-100">{patient.name}</p>
           </div>
-          <div>
-            <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-              History of Present Illness
-            </p>
-            <p className="min-h-5 text-sm text-gray-800">
-              {historyOfPresentIllness || (
-                <span className="italic text-gray-300">
-                  No history recorded
-                </span>
-              )}
-            </p>
-          </div>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
+            Live
+          </span>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h4 className="mb-3 text-xs font-bold tracking-widest text-emerald-600">
-          OBJECTIVE
-        </h4>
-        <div>
-          <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-            Physical Exam Findings
+      <div className="grid gap-4">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-violet-500">
+            Subjective
           </p>
-          <p className="min-h-5 text-sm text-gray-800">
-            {remarks || (
-              <span className="italic text-gray-300">No remarks recorded</span>
-            )}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h4 className="mb-3 text-xs font-bold tracking-widest text-amber-600">
-          ASSESSMENT
-        </h4>
-        <div>
-          <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-            Diagnosis
-          </p>
-          <p className="min-h-5 text-sm text-gray-800">
-            {diagnosis || (
-              <span className="italic text-gray-300">
-                No diagnosis recorded
-              </span>
-            )}
-          </p>
+          <div className="space-y-4">
+            <PreviewBlock
+              title="Chief Complaint"
+              value={chiefComplaint}
+              empty="No complaint recorded"
+            />
+            <PreviewBlock
+              title="History of Present Illness"
+              value={historyOfPresentIllness}
+              empty="No history recorded"
+            />
+          </div>
         </div>
 
-        {diagnostics.length > 0 && (
-          <div className="mt-4 space-y-4">
-            {diagnostics.map((d, i) => (
-              <div
-                key={i}
-                className="flex justify-center rounded-xl border border-gray-200 bg-gray-50 p-4"
-              >
-                <img
-                  src={d.imageData}
-                  alt="Diagnostic"
-                  className="max-h-[420px] w-full cursor-zoom-in rounded-lg object-contain transition hover:scale-105"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-emerald-500">
+            Objective
+          </p>
+          <PreviewBlock
+            title="Physical Exam Findings"
+            value={remarks}
+            empty="No remarks recorded"
+          />
+        </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h4 className="mb-3 text-xs font-bold tracking-widest text-cyan-600">
-          PLAN
-        </h4>
-        <div className="space-y-3">
-          <div>
-            <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-              Treatment Plan
-            </p>
-            <p className="min-h-5 text-sm text-gray-800">
-              {plan || (
-                <span className="italic text-gray-300">No plan recorded</span>
-              )}
-            </p>
-          </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-amber-500">
+            Assessment
+          </p>
+          <PreviewBlock
+            title="Diagnosis"
+            value={diagnosis}
+            empty="No diagnosis recorded"
+          />
 
-          {prescriptions.length > 0 && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <p className="mb-2 text-xs font-medium uppercase text-gray-500">
-                Prescriptions
-              </p>
+          {diagnostics.length > 0 && (
+            <div className="mt-4 space-y-4">
+              {diagnostics.map((d, i) => (
+                <div
+                  key={i}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                >
+                  <img
+                    src={d.imageData}
+                    alt="Diagnostic"
+                    className="max-h-[420px] w-full object-contain"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-cyan-500">
+            Plan
+          </p>
+          <div className="space-y-4">
+            <PreviewBlock
+              title="Treatment Plan"
+              value={plan}
+              empty="No plan recorded"
+            />
+
+            {prescriptions.length > 0 && (
               <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Prescriptions
+                </p>
                 {prescriptions.map((rx, idx) => (
                   <div
                     key={idx}
-                    className="rounded-lg border border-amber-200 bg-amber-50 p-2"
+                    className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
                   >
-                    <p className="text-sm font-semibold text-amber-900">
-                      {rx.drug}
-                    </p>
+                    <p className="text-sm font-semibold text-amber-900">{rx.drug}</p>
                     <p className="text-xs text-amber-700">
                       {rx.dose} · {rx.frequency} · {rx.duration}
                     </p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {selectedMaterials.length > 0 && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <p className="mb-2 text-xs font-medium uppercase text-gray-500">
-                Educational Materials
-              </p>
+            {selectedMaterials.length > 0 && (
               <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Educational Materials
+                </p>
                 {selectedMaterials.map((material, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2"
+                    className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3"
                   >
                     {material.thumbnail && (
                       <img
                         src={material.thumbnail}
                         alt={material.title}
-                        className="h-8 w-8 rounded object-cover"
+                        className="h-10 w-10 rounded-xl object-cover"
                       />
                     )}
-                    <p className="text-xs font-medium text-blue-900">
-                      {material.title}
-                    </p>
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900">{material.title}</p>
+                      <p className="text-xs text-blue-700">{material.category}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="mt-3 border-t border-gray-100 pt-3">
-            <p className="mb-1 text-xs font-medium uppercase text-gray-500">
-              Follow-up
-            </p>
-            <p className="min-h-5 text-sm text-gray-800">
-              {followUp || (
-                <span className="italic text-gray-300">
-                  No follow-up scheduled
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <PreviewBlock
+                title="Follow-up"
+                value={followUp}
+                empty="No follow-up scheduled"
+              />
+
+              {scheduledProcedure && (
+                <div className="grid gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      Procedure
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {formatProcedureLabel(scheduledProcedure.procedureType)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      Date
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {formatDisplayDate(scheduledProcedure.appointmentDate)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      Time
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {formatDisplayTime(scheduledProcedure.appointmentTime)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      Room
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {selectedRoomLabel ?? "Auto-assign room"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!scheduledProcedure && selectedRoomLabel && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  📍 {selectedRoomLabel}
                 </span>
               )}
-            </p>
+            </div>
           </div>
         </div>
       </div>
@@ -352,321 +825,320 @@ const SoapNoteModal = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/30 p-2 backdrop-blur-sm sm:p-4">
-        <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-800 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white px-4 py-4 sm:px-6">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                SOAP Note
-              </h2>
-              <p className="text-sm text-gray-500">{patient.name}</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-200"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-md">
+        <div className="flex max-h-[96vh] w-full max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-white/60 bg-white shadow-[0_30px_90px_rgba(2,8,23,0.22)]">
+          <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.10),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_right,_#ffffff,_#f8fbff)] px-5 py-5 sm:px-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
+                  Patient Note Workspace
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  SOAP Note
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">{patient.name}</p>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+                Close
+              </button>
+            </div>
           </div>
 
-          <div id="soap-modal-content" className="flex-1 overflow-y-auto">
-            <div className="grid min-h-0 grid-cols-1 lg:grid-cols-2">
-              <div className="overflow-y-auto bg-gray-50/50 p-4 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 sm:p-6">
+          <div
+            id="soap-modal-content"
+            className="flex-1 overflow-y-auto bg-[linear-gradient(to_bottom,_#f8fbff,_#ffffff)]"
+          >
+            <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="overflow-y-auto p-4 sm:p-6">
                 <div className="space-y-6">
-                  <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="h-5 w-1 rounded-full bg-violet-500"></div>
-                      <h3 className="text-sm font-bold tracking-wider text-gray-700">
-                        SUBJECTIVE
-                      </h3>
-                    </div>
+                  <SectionCard
+                    title="Subjective"
+                    accent="bg-violet-500"
+                    subtitle="Document the patient's main concerns and history."
+                  >
+                    <div className="space-y-4">
+                      <TextAreaField
+                        id="chiefComplaint"
+                        label="Chief Complaint"
+                        placeholder="Enter patient's chief complaint"
+                        value={chiefComplaint}
+                        onChange={setChiefComplaint}
+                      />
 
-                    <FieldBlock
-                      label="Chief Complaint"
-                      placeholder="Enter patient's chief complaint"
-                      value={chiefComplaint}
-                      onChange={(e) => setChiefComplaint(e.target.value)}
-                    />
-
-                    <div className="mt-4">
-                      <FieldBlock
+                      <TextAreaField
+                        id="historyOfPresentIllness"
                         label="History of Present Illness"
                         placeholder="Describe symptoms, duration, onset..."
                         value={historyOfPresentIllness}
-                        onChange={(e) =>
-                          setHistoryOfPresentIllness(e.target.value)
-                        }
+                        onChange={setHistoryOfPresentIllness}
+                        rows={5}
                       />
                     </div>
-                  </div>
+                  </SectionCard>
 
-                  <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="h-5 w-1 rounded-full bg-emerald-500"></div>
-                      <h3 className="text-sm font-bold tracking-wider text-gray-700">
-                        OBJECTIVE
-                      </h3>
-                    </div>
-
-                    <p className="mb-2 text-xs text-gray-500">
-                      (Physical exam, labs, vitals)
-                    </p>
-
-                    <FieldBlock
+                  <SectionCard
+                    title="Objective"
+                    accent="bg-emerald-500"
+                    subtitle="Record physical exam findings and other observed details."
+                  >
+                    <TextAreaField
+                      id="remarks"
                       label="Remarks"
                       placeholder="Physical exam findings..."
                       value={remarks}
-                      onChange={(e) => setRemarks(e.target.value)}
+                      onChange={setRemarks}
+                      rows={5}
                     />
-                  </div>
+                  </SectionCard>
 
-                  <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="h-5 w-1 rounded-full bg-amber-500"></div>
-                      <h3 className="text-sm font-bold tracking-wider text-gray-700">
-                        ASSESSMENT
-                      </h3>
-                    </div>
+                  <SectionCard
+                    title="Assessment"
+                    accent="bg-amber-500"
+                    subtitle="Save diagnoses and body diagram findings."
+                  >
+                    <div className="space-y-4">
+                      <TextAreaField
+                        id="diagnosis"
+                        label="Diagnosis"
+                        placeholder="Diagnosis / impression"
+                        value={diagnosis}
+                        onChange={setDiagnosis}
+                        rows={4}
+                      />
 
-                    <FieldBlock
-                      label="Diagnosis"
-                      placeholder="Diagnosis / impression"
-                      value={diagnosis}
-                      onChange={(e) => setDiagnosis(e.target.value)}
-                    />
+                      <ActionChips
+                        options={["Add Diagnosis"]}
+                        onSelect={() => setOpen3DModal(true)}
+                      />
 
-                    <ActionChips
-                      options={["Add Diagnosis"]}
-                      onSelect={() => setOpen3DModal(true)}
-                    />
-
-                    {diagnostics.length > 0 && (
-                      <div className="mt-4 space-y-3">
-                        {diagnostics.map((d, i) => (
-                          <div
-                            key={i}
-                            className="rounded-xl border border-gray-200 bg-gray-50 p-3"
-                          >
-                            <img
-                              src={d.imageData}
-                              alt="Diagnostic"
-                              className="h-56 w-full cursor-zoom-in rounded-lg object-contain transition hover:scale-105"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="h-5 w-1 rounded-full bg-cyan-500"></div>
-                      <h3 className="text-sm font-bold tracking-wider text-gray-700">
-                        PLAN
-                      </h3>
-                    </div>
-
-                    <FieldBlock
-                      label="Plan"
-                      placeholder="Treatment plan"
-                      value={plan}
-                      onChange={(e) => setPlan(e.target.value)}
-                    />
-
-                    <ActionChips
-                      options={[
-                        "Add Prescription",
-                        "Add Body Diagram",
-                        "Add Educational Material",
-                      ]}
-                      onSelect={(option) => {
-                        if (option === "Add Prescription") {
-                          setOpenPrescription(true);
-                        } else if (option === "Add Body Diagram") {
-                          setOpen3DModal(true);
-                        } else if (option === "Add Educational Material") {
-                          setOpenEducationalMaterial(true);
-                        }
-                      }}
-                    />
-
-                    {prescriptions.map((rx, idx) => (
-                      <div
-                        key={idx}
-                        className="mt-4 flex items-start justify-between rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4"
-                      >
-                        <div>
-                          <p className="font-semibold text-gray-900">
-                            {rx.drug}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {rx.dose} · {rx.frequency} · {rx.duration}
-                          </p>
+                      {diagnostics.length > 0 && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {diagnostics.map((d, i) => (
+                            <div
+                              key={i}
+                              className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2"
+                            >
+                              <img
+                                src={d.imageData}
+                                alt="Diagnostic"
+                                className="h-56 w-full rounded-xl object-contain"
+                              />
+                            </div>
+                          ))}
                         </div>
+                      )}
+                    </div>
+                  </SectionCard>
 
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEdit(idx)}
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-blue-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(idx)}
-                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-red-700"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <SectionCard
+                    title="Plan"
+                    accent="bg-cyan-500"
+                    subtitle="Create prescriptions, attach materials, and set follow-up plans."
+                  >
+                    <div className="space-y-4">
+                      <TextAreaField
+                        id="plan"
+                        label="Plan"
+                        placeholder="Treatment plan"
+                        value={plan}
+                        onChange={setPlan}
+                        rows={4}
+                      />
 
-                    {selectedMaterials.length > 0 && (
-                      <div className="mt-4 space-y-3">
-                        <p className="text-sm font-medium text-gray-700">
-                          Attached Educational Materials
-                        </p>
+                      <ActionChips
+                        options={["Add Prescription", "Add Educational Material"]}
+                        onSelect={(option) => {
+                          if (option === "Add Prescription") {
+                            setOpenPrescription(true);
+                          } else if (option === "Add Educational Material") {
+                            setOpenEducationalMaterial(true);
+                          }
+                        }}
+                      />
 
-                        {selectedMaterials.map((material, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4"
-                          >
-                            <div className="flex items-center gap-3">
-                              {material.thumbnail && (
-                                <img
-                                  src={material.thumbnail}
-                                  alt={material.title}
-                                  className="h-12 w-12 rounded-lg object-cover shadow-sm"
-                                />
-                              )}
+                      {prescriptions.length > 0 && (
+                        <div className="space-y-3">
+                          {prescriptions.map((rx, idx) => (
+                            <div
+                              key={idx}
+                              className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
                               <div>
-                                <p className="font-semibold text-gray-900">
-                                  {material.title}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {material.category}
+                                <p className="font-semibold text-slate-900">{rx.drug}</p>
+                                <p className="text-sm text-slate-600">
+                                  {rx.dose} · {rx.frequency} · {rx.duration}
                                 </p>
                               </div>
+
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEdit(idx)}
+                                  className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(idx)}
+                                  className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {selectedMaterials.length > 0 && (
+                        <div className="space-y-3">
+                          {selectedMaterials.map((material, idx) => (
+                            <div
+                              key={idx}
+                              className="flex flex-col gap-3 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex items-center gap-3">
+                                {material.thumbnail && (
+                                  <img
+                                    src={material.thumbnail}
+                                    alt={material.title}
+                                    className="h-14 w-14 rounded-2xl object-cover shadow-sm"
+                                  />
+                                )}
+                                <div>
+                                  <p className="font-semibold text-slate-900">
+                                    {material.title}
+                                  </p>
+                                  <p className="text-sm text-slate-500">
+                                    {material.category}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handleRemoveMaterial(idx)}
+                                className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <TextAreaField
+                          id="followUp"
+                          label="Follow-up"
+                          placeholder="Follow-up notes or next visit instructions"
+                          value={followUp}
+                          onChange={setFollowUp}
+                          rows={3}
+                        />
+
+                        <div className="mt-4 rounded-2xl border border-dashed border-cyan-200 bg-cyan-50/50 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-700">
+                                Appointment Flow
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-800">
+                                Procedure → Date → Time → Room
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Room should be last, or auto-assigned if only one room fits.
+                              </p>
                             </div>
 
-                            <button
-                              onClick={() => handleRemoveMaterial(idx)}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
+                            <div className="shrink-0">
+                              <ActionChips
+                                options={[
+                                  scheduledProcedure
+                                    ? "Reschedule Procedure"
+                                    : "Schedule Procedure",
+                                ]}
+                                onSelect={() => setOpenRoomModal(true)}
+                              />
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
 
-                    <div className="mt-4">
-                      <FieldBlock
-                        label="Follow-up"
-                        placeholder="Clinic and date"
-                        value={followUp}
-                        onChange={(e) => setFollowUp(e.target.value)}
-                      />
+                          <div className="mt-4">{renderScheduleSummaryCard()}</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </SectionCard>
                 </div>
               </div>
 
-              <div className="hidden overflow-y-auto border-l border-gray-200 bg-gradient-to-b from-gray-100 to-gray-50 p-6 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 lg:block">
+              <div className="hidden overflow-y-auto border-l border-slate-200 bg-[linear-gradient(to_bottom,_#f8fafc,_#eef6ff)] p-6 lg:block">
                 <div className="sticky top-0">
                   {showPreview ? (
                     renderPreview()
                   ) : (
-                    <div className="flex h-64 flex-col items-center justify-center text-gray-400">
-                      <svg
-                        className="mb-3 h-12 w-12"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      <p className="text-sm font-medium">
-                        Preview will appear here
+                    <div className="flex h-[360px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/80 text-center shadow-sm">
+                      <div className="mb-4 rounded-full bg-sky-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                        Live Preview
+                      </div>
+                      <p className="text-base font-semibold text-slate-700">
+                        Your SOAP preview will appear here
                       </p>
-                      <p className="mt-1 text-xs">
-                        after clicking Preview button
+                      <p className="mt-2 max-w-xs text-sm text-slate-400">
+                        Click the Preview button below to generate the right-side preview panel.
                       </p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="border-t border-gray-200 bg-gray-50 p-4 lg:hidden">
-                <details className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <summary className="flex cursor-pointer items-center justify-between px-4 py-3 font-medium text-gray-700 hover:bg-gray-50">
-                    <span>📋 Live Preview</span>
-                    <svg
-                      className="h-4 w-4 transform transition-transform"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
+              <div className="border-t border-slate-200 bg-slate-50 p-4 lg:hidden">
+                <details className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
+                    Open Live Preview
                   </summary>
-                  <div className="border-t border-gray-200 p-4">
-                    {renderPreview()}
-                  </div>
+                  <div className="border-t border-slate-200 p-4">{renderPreview()}</div>
                 </details>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-end gap-3 border-t bg-gray-50 p-4">
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 font-medium hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleShowPreview}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
-            >
-              Preview
-            </button>
-            <button
-              onClick={handleExportPDF}
-              className="rounded-lg bg-amber-500 px-5 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-amber-600"
-            >
-              Export PDF
-            </button>
-            <button
-              onClick={handleSaveNote}
-              className="rounded-lg bg-violet-600 px-5 py-2.5 font-medium text-white shadow-md transition-colors hover:bg-violet-700"
-            >
-              Save Note
-            </button>
-          </div>
+              {error && (
+                <div className="border-t border-red-200 bg-red-50/80 p-4">
+                  <div className="flex items-start gap-2 text-sm text-red-800">
+                    <span className="mt-0.5 h-4 w-4 shrink-0 text-red-500">⚠️</span>
+                    <span>{error}</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/90 px-5 py-4 backdrop-blur sm:px-6">
+                <button
+                  onClick={onClose}
+                  className="rounded-2xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleShowPreview}
+                  className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  Preview
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600"
+                >
+                  Export PDF
+                </button>
+                <button
+                  onClick={handleSaveNote}
+                  className="rounded-2xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700"
+                  disabled={!!error}
+                >
+                  Save Note
+                </button>
+              </div>
         </div>
       </div>
 
@@ -677,9 +1149,7 @@ const SoapNoteModal = ({
           setEditingIndex(null);
         }}
         onSave={handleAddOrUpdatePrescription}
-        defaultValues={
-          editingIndex !== null ? prescriptions[editingIndex] : undefined
-        }
+        defaultValues={editingIndex !== null ? prescriptions[editingIndex] : undefined}
       />
 
       {open3DModal && patient && (
@@ -703,6 +1173,16 @@ const SoapNoteModal = ({
           setOpenEducationalMaterial(false);
         }}
         selected={selectedMaterials}
+      />
+
+      <ClinicalRoom
+        open={openRoomModal}
+        onClose={() => setOpenRoomModal(false)}
+        onSelectRoom={handleRoomSelect}
+        onSelectSchedule={handleScheduleProcedure}
+        patientId={patient.id}
+        patientName={patient.name}
+        selectedRoom={selectedRoom || undefined}
       />
     </>
   );

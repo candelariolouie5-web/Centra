@@ -4,7 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 /* ===============================
-   ADMIN → VIEW ALL APPOINTMENTS
+   ADMIN → VIEW ADMIN-ASSIGNED APPOINTMENTS ONLY
 ================================ */
 export async function GET() {
   try {
@@ -24,20 +24,31 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
     }
 
-    // Fetch all appointments, most recent first
+    // Fetch ADMIN-assigned appointments only, most recent first
     const appointments = await prisma.appointment.findMany({
+      where: {
+        assignedToRole: "ADMIN"
+      },
       orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json({ appointments }, { status: 200 });
   } catch (error) {
-    console.error("Error fetching admin appointments:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[ADMIN APPOINTMENTS GET ERROR]", error);
+    return NextResponse.json(
+      {
+        error: process.env.NODE_ENV === "development"
+          ? (error instanceof Error ? error.message : String(error))
+          : "Internal server error",
+      },
+      { status: 500 }
+    );
   }
 }
 
 /* ===============================
-   ADMIN → APPROVE / REJECT APPOINTMENT
+   ADMIN → APPROVE / REJECT APPOINTMENT (Any assignment)
+   Note: Admins can update any appointment status (even DOCTOR ones if needed)
 ================================ */
 export async function PATCH(request: NextRequest) {
   try {
@@ -60,12 +71,12 @@ export async function PATCH(request: NextRequest) {
     const { id, status } = await request.json();
     console.log("PATCH request received:", { id, status });
 
-    if (!id || !["CONFIRMED", "REJECTED", "CANCELLED"].includes(status)) {
+    if (!id || !["REJECTED", "CANCELLED"].includes(status)) {
       console.log("Invalid payload:", { id, status });
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      return NextResponse.json({ error: "Appointments are auto-confirmed. Use REJECTED or CANCELLED only." }, { status: 400 });
     }
 
-    // Check if appointment exists
+    // Check if appointment exists (no role filter for updates)
     const existingAppointment = await prisma.appointment.findUnique({
       where: { id },
     });
@@ -74,6 +85,11 @@ export async function PATCH(request: NextRequest) {
     if (!existingAppointment) {
       console.log("Appointment not found for id:", id);
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    if (existingAppointment.status === "CONFIRMED") {
+      console.log("Cannot change confirmed appointment");
+      return NextResponse.json({ error: "Confirmed appointments cannot be manually changed. Use cancel/reject if needed." }, { status: 400 });
     }
 
     // Update appointment status

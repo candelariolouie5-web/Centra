@@ -1,108 +1,270 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { prisma, getActiveDoctorCount } from "@/lib/prisma";
+import {
+  prisma,
+  BUSY_APPOINTMENT_STATUSES,
+  findFirstFreeAssigneeForSlot,
+  getDayRange,
+} from "@/lib/prisma";
 
 /* ===============================
-   USER → CREATE APPOINTMENT
+   SHARED → CREATE APPOINTMENT (Users/Staff/Clinical/Soap)
+   Exact Account Assignment:
+   1st booking = ADMIN
+   2nd booking = DOCTOR
+   3rd booking = FULL
 ================================ */
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user?.id || !session.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { date, time, name, age, contactNumber, serviceType } = await request.json();
+    const body = await request.json();
+    const {
+      date,
+      time,
+      serviceType,
+      patientId,
+      name,
+      age,
+      contactNumber,
+      email: bodyEmail,
+      room,
+      source = "user",
+    } = body;
 
-    if (!session.user.email) {
-      return NextResponse.json({ error: "User email is required" }, { status: 400 });
+    if (!date || !time || !serviceType) {
+      return NextResponse.json(
+        { error: "date, time, serviceType required" },
+        { status: 400 }
+      );
     }
 
-    const ageNum = parseInt(age);
-    if (!date || !time || !name || !contactNumber || !serviceType || isNaN(ageNum) || ageNum <= 0) {
-      return NextResponse.json({ error: "Missing required fields or invalid age" }, { status: 400 });
+    let finalPatientId: string;
+    let finalUserId: string | null = null;
+    let finalFullName: string;
+    let finalEmail: string;
+    let finalAge: number | undefined;
+    let finalContactNumber: string | undefined;
+
+    if (patientId) {
+      const patient = await prisma.patient.findUnique({
+        where: { id: patientId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          age: true,
+          phone: true,
+        },
+      });
+
+      if (!patient) {
+        return NextResponse.json({ error: "Patient not found" }, { status: 400 });
+      }
+
+      finalPatientId = patient.id;
+      finalUserId = null;
+      finalFullName = name || patient.name || "Patient";
+      finalEmail = bodyEmail || patient.email || "";
+      finalAge = age ? parseInt(String(age), 10) : patient.age ?? undefined;
+      finalContactNumber = contactNumber || patient.phone || undefined;
+    } else {
+      if (!name || !contactNumber) {
+        return NextResponse.json(
+          { error: "name, contactNumber required for self-booking" },
+          { status: 400 }
+        );
+      }
+
+      const safeEmail = session.user.email || bodyEmail || "";
+
+      let patient = await prisma.patient.findFirst({
+        where: {
+          OR: [
+            {
+              name,
+              phone: contactNumber,
+            },
+            ...(safeEmail
+              ? [
+                  {
+                    name,
+                    email: safeEmail,
+                  },
+                ]
+              : []),
+          ],
+        },
+      });
+
+      if (!patient) {
+        patient = await prisma.patient.create({
+          data: {
+            name,
+            email: safeEmail || undefined,
+            age: age ? parseInt(String(age), 10) : undefined,
+            phone: contactNumber || undefined,
+          },
+        });
+      } else {
+        patient = await prisma.patient.update({
+          where: { id: patient.id },
+          data: {
+            name,
+            email: safeEmail || patient.email || undefined,
+            age: age ? parseInt(String(age), 10) : patient.age ?? undefined,
+            phone: contactNumber || patient.phone || undefined,
+          },
+        });
+      }
+
+      finalPatientId = patient.id;
+      finalUserId = session.user.id;
+      finalFullName = name;
+      finalEmail = safeEmail;
+      finalAge = age ? parseInt(String(age), 10) : undefined;
+      finalContactNumber = contactNumber;
     }
 
-    const email = session.user.email;
+    if (finalAge !== undefined && (isNaN(finalAge) || finalAge <= 0)) {
+      return NextResponse.json({ error: "Invalid age" }, { status: 400 });
+    }
 
     const appointmentDateTime = new Date(`${date}T${time}`);
 
-    // Prevent same-day appointments (earliest = tomorrow)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    if (appointmentDateTime < tomorrow) {
-      return NextResponse.json({ error: "Same-day appointments are not allowed. Please select a date from tomorrow onwards." }, { status: 400 });
+    if (isNaN(appointmentDateTime.getTime())) {
+      return NextResponse.json({ error: "Invalid date/time" }, { status: 400 });
     }
 
-    // Check if the selected date is within a blocked date range
+    if (source === "user") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      if (appointmentDateTime < tomorrow) {
+        return NextResponse.json(
+          { error: "Same-day appointments not allowed for self-booking" },
+          { status: 400 }
+        );
+      }
+    }
+
     const blockedDate = await prisma.blockedDate.findFirst({
       where: {
-        startDate: {
-          lte: appointmentDateTime,
-        },
-        endDate: {
-          gte: appointmentDateTime,
-        },
+        startDate: { lte: appointmentDateTime },
+        endDate: { gte: appointmentDateTime },
       },
     });
 
     if (blockedDate) {
       return NextResponse.json(
-        { error: "Doctor is unavailable on selected date. Please choose another date." },
+        { error: `Date blocked: ${blockedDate.reason || "Blocked"}` },
         { status: 400 }
       );
     }
 
-    // Get active doctor count (capacity)
-    const activeDoctors = await getActiveDoctorCount();
+    const appointment = await prisma.$transaction(
+      async (tx) => {
+        const assignee = await findFirstFreeAssigneeForSlot(date, time, tx);
 
-    if (activeDoctors === 0) {
-      return NextResponse.json({ error: "No active doctors available. Please contact admin." }, { status: 400 });
-    }
-
-    // Check booking count for slot
-    const dateStart = new Date(date + 'T00:00:00');
-    const dateEnd = new Date(date + 'T23:59:59');
-    const bookedCount = await prisma.appointment.count({
-      where: {
-        appointmentDate: {
-          gte: dateStart,
-          lt: dateEnd
-        },
-        appointmentTime: time,
-        status: {
-          in: ["PENDING", "CONFIRMED"]
+        if (!assignee) {
+          const error = new Error("SLOT_FULL");
+          (error as any).code = "SLOT_FULL";
+          throw error;
         }
-      }
-    });
 
-    if (bookedCount >= activeDoctors) {
-      return NextResponse.json({ error: `This time slot is full (${bookedCount}/${activeDoctors} booked). Please select another time.` }, { status: 400 });
+        const { start, end } = getDayRange(date);
+
+        const duplicateForSameExactAccount = await tx.appointment.findFirst({
+          where: {
+            appointmentDate: {
+              gte: start,
+              lte: end,
+            },
+            appointmentTime: time,
+            assignedToUserId: assignee.assignedToUserId,
+            status: {
+              in: [...BUSY_APPOINTMENT_STATUSES],
+            },
+          },
+          select: { id: true },
+        });
+
+        if (duplicateForSameExactAccount) {
+          const error = new Error("SLOT_FULL");
+          (error as any).code = "SLOT_FULL";
+          throw error;
+        }
+
+        const createdAppointment = await tx.appointment.create({
+          data: {
+            patientId: finalPatientId,
+            userId: finalUserId,
+            fullName: finalFullName,
+            age: finalAge,
+            contactNumber: finalContactNumber,
+            email: finalEmail,
+            serviceType,
+            appointmentDate: appointmentDateTime,
+            appointmentTime: time,
+            room,
+            source,
+            status: "CONFIRMED",
+            assignedToRole: assignee.assignedToRole,
+            assignedToUserId: assignee.assignedToUserId,
+            createdByRole: session.user.role || "USER",
+          },
+        });
+
+        console.log("Appointment assignment debug:", {
+          date,
+          time,
+          assignedToRole: createdAppointment.assignedToRole,
+          assignedToUserId: createdAppointment.assignedToUserId,
+          patientId: createdAppointment.patientId,
+          userId: createdAppointment.userId,
+          source: createdAppointment.source,
+        });
+
+        return createdAppointment;
+      },
+      {
+        isolationLevel: "Serializable",
+      }
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        appointment,
+        message:
+          source === "user"
+            ? "Your appointment is confirmed"
+            : "Appointment scheduled successfully",
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("Error creating appointment:", error);
+
+    if (error?.code === "SLOT_FULL" || error?.message === "SLOT_FULL") {
+      return NextResponse.json(
+        { error: "No available slots" },
+        { status: 409 }
+      );
     }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        userId: session.user.id,
-        fullName: name,
-        age: parseInt(age),
-        contactNumber,
-        email,
-        serviceType,
-        appointmentDate: appointmentDateTime,
-        appointmentTime: time,
-        status: "PENDING",
-      },
-    });
-
-    return NextResponse.json({ success: true, appointment }, { status: 201 });
-  } catch (error) {
-    console.error("Error creating appointment:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || "Failed to create appointment" },
+      { status: 500 }
+    );
   }
 }
 
@@ -113,12 +275,15 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const appointments = await prisma.appointment.findMany({
       where: { userId: session.user.id },
+      include: {
+        patient: true,
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -128,4 +293,3 @@ export async function GET() {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
