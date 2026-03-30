@@ -80,8 +80,8 @@ model Patient {
 
 model Appointment {
   id               String                     @id @default(cuid())
-  userId           String? // Legacy, nullable
-  patientId        String? // New
+  userId           String?
+  patientId        String?
   fullName         String
   email            String
   serviceType      String
@@ -93,7 +93,7 @@ model Appointment {
   age              Int?
   contactNumber    String?
   assignedToRole   AppointmentAssignmentRole?
-  assignedToUserId String? // Keep nullable
+  assignedToUserId String?
   room             String?
   source           String?
   createdByRole    String?
@@ -120,18 +120,42 @@ model SoapNote {
   imageData         String?
   prescriptionsList Prescription[]
   patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model Medication {
+  id            String         @id @default(cuid())
+  generic       String
+  brandName     String?
+  quantity      String?
+  dosage        String?
+  instructions  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  prescriptions Prescription[]
+
+  @@index([generic])
+  @@index([brandName])
 }
 
 model Prescription {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   soapNoteId   String
-  drug         String
-  dose         String
-  frequency    String
-  duration     String
+  medicationId String?
+  generic      String
+  brandName    String?
+  quantity     String?
+  dosage       String?
   instructions String?
-  createdAt    DateTime @default(now())
-  soapNote     SoapNote @relation(fields: [soapNoteId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  soapNote     SoapNote    @relation(fields: [soapNoteId], references: [id], onDelete: Cascade)
+  medication   Medication? @relation(fields: [medicationId], references: [id], onDelete: SetNull)
+
+  @@index([soapNoteId])
+  @@index([medicationId])
+  @@index([generic])
 }
 
 model MedicalHistory {
@@ -179,4 +203,3 @@ enum AppointmentStatus {
   ACCEPTED
   REJECTED
 }
-

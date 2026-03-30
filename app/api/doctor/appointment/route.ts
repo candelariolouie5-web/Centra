@@ -56,6 +56,18 @@ export async function GET() {
 /* ===============================
    DOCTOR → CANCEL OWN ASSIGNED APPOINTMENT ONLY
 ================================ */
+function isValidStatusTransition(current: string, next: string): boolean {
+  // Block changes to/from terminal states
+  if (["CANCELLED", "REJECTED"].includes(current)) return false;
+  if (["CANCELLED", "REJECTED"].includes(next)) {
+    // Allow from active states
+    return ["PENDING", "CONFIRMED", "ACCEPTED"].includes(current);
+  }
+  // Allow PENDING -> CONFIRMED (legacy)
+  // Block same status
+  return current !== next && ["PENDING"].includes(current) && next === "CONFIRMED";
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -78,9 +90,9 @@ export async function PATCH(request: NextRequest) {
 
     const { id, status } = await request.json();
 
-    if (!id || status !== "CANCELLED") {
+    if (!id || !["CANCELLED", "REJECTED"].includes(status)) {
       return NextResponse.json(
-        { error: "Valid ID and status='CANCELLED' required" },
+        { error: "Valid ID and status='CANCELLED' or 'REJECTED' required" },
         { status: 400 }
       );
     }
@@ -99,9 +111,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Transition validation
+    const isValidTransition = isValidStatusTransition(existingAppointment.status, status);
+    if (!isValidTransition) {
+      return NextResponse.json(
+        { error: `Invalid status transition: ${existingAppointment.status} → ${status}` },
+        { status: 400 }
+      );
+    }
+
     const appointment = await prisma.appointment.update({
       where: { id },
-      data: { status: "CANCELLED" },
+      data: { status },
     });
 
     return NextResponse.json({ success: true, appointment }, { status: 200 });

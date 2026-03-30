@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { join } from "path";
 
-// Ensure upload directory exists
 async function ensureUploadDir(dirPath: string) {
   try {
     const { default: fs } = await import("fs");
@@ -17,89 +16,133 @@ async function ensureUploadDir(dirPath: string) {
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ patientId: string }> }) {
-  const session = await getServerSession(authOptions);
+async function resolvePatientId(rawPatientId: string) {
+  if (!rawPatientId) return null;
 
-  if (!session || !session.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is admin
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { role: true },
+  // 1) Direct Patient ID lookup
+  const directPatient = await prisma.patient.findUnique({
+    where: { id: rawPatientId },
+    select: { id: true },
   });
 
-  if (user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (directPatient?.id) {
+    return directPatient.id;
   }
 
-  const { patientId } = await params;
+  // 2) Appointment ID -> appointment.patientId -> Patient ID
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: rawPatientId },
+    select: { patientId: true },
+  });
 
-  if (!patientId) {
-    return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
+  if (!appointment?.patientId) {
+    return null;
   }
 
+  const patientFromAppointment = await prisma.patient.findUnique({
+    where: { id: appointment.patientId },
+    select: { id: true },
+  });
+
+  return patientFromAppointment?.id ?? null;
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
   try {
-    // Check if patient exists
-    const patient = await prisma.user.findUnique({
-      where: { id: patientId },
-      select: { id: true, role: true },
-    });
+    const session = await getServerSession(authOptions);
 
-    if (!patient || patient.role !== "USER") {
-      return NextResponse.json({ error: "Invalid patient" }, { status: 400 });
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get medical histories for the patient
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true, isActive: true },
+    });
+
+    if (!user || user.role !== "ADMIN" || !user.isActive) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { patientId } = await params;
+
+    if (!patientId) {
+      return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
+    }
+
+    const resolvedPatientId = await resolvePatientId(patientId);
+
+    if (!resolvedPatientId) {
+      return NextResponse.json(
+        {
+          error: "Invalid patient",
+          receivedPatientId: patientId,
+        },
+        { status: 400 }
+      );
+    }
+
     const medicalHistories = await prisma.medicalHistory.findMany({
-      where: { patientId },
+      where: { patientId: resolvedPatientId },
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ medicalHistories });
+    return NextResponse.json({
+      medicalHistories,
+      resolvedPatientId,
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Failed to fetch medical histories" }, { status: 500 });
+    console.error("[ADMIN_MEDICAL_HISTORY_GET]", error);
+    return NextResponse.json(
+      { error: "Failed to fetch medical histories" },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ patientId: string }> }) {
-  const session = await getServerSession(authOptions);
-
-  if (!session || !session.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is admin
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { role: true },
-  });
-
-  if (user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const { patientId } = await params;
-
-  if (!patientId) {
-    return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
-  }
-
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
   try {
-    // Check if patient exists
-    const patient = await prisma.user.findUnique({
-      where: { id: patientId },
-      select: { id: true, role: true },
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true, isActive: true },
     });
 
-    if (!patient || patient.role !== "USER") {
-      return NextResponse.json({ error: "Invalid patient" }, { status: 400 });
+    if (!user || user.role !== "ADMIN" || !user.isActive) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { patientId } = await params;
+
+    if (!patientId) {
+      return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
+    }
+
+    const resolvedPatientId = await resolvePatientId(patientId);
+
+    if (!resolvedPatientId) {
+      return NextResponse.json(
+        {
+          error: "Invalid patient",
+          receivedPatientId: patientId,
+        },
+        { status: 400 }
+      );
     }
 
     const formData = await request.formData();
-    
+
     const type = formData.get("type") as string;
     const resultDateStr = formData.get("resultDate") as string;
     const lab = formData.get("lab") as string;
@@ -107,19 +150,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const photos = formData.getAll("photos") as File[];
 
     if (!type || !resultDateStr || !remarks) {
-      return NextResponse.json({ error: "Type, result date, and remarks are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Type, result date, and remarks are required" },
+        { status: 400 }
+      );
     }
 
-    // Parse date string and create date in local time ( noon to avoid timezone issues)
-    // This ensures the date stays as selected regardless of timezone
-    const [year, month, day] = resultDateStr.split('-').map(Number);
+    const [year, month, day] = resultDateStr.split("-").map(Number);
     const resultDate = new Date(year, month - 1, day, 12, 0, 0);
 
-    // Process uploaded images
     const photoUrls: string[] = [];
     const uploadDir = join(process.cwd(), "public", "uploads", "medical-history");
-    
-    // Ensure upload directory exists
+
     await ensureUploadDir(uploadDir);
 
     for (const photo of photos) {
@@ -127,36 +169,135 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         try {
           const bytes = await photo.arrayBuffer();
           const buffer = Buffer.from(bytes);
-          
-          // Generate unique filename
-          const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-          const fileName = `${uniqueSuffix}-${photo.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+
+          const uniqueSuffix = `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(7)}`;
+          const fileName = `${uniqueSuffix}-${photo.name.replace(
+            /[^a-zA-Z0-9.-]/g,
+            "_"
+          )}`;
           const filePath = join(uploadDir, fileName);
-          
+
           await writeFile(filePath, buffer);
           photoUrls.push(`/uploads/medical-history/${fileName}`);
         } catch (photoError) {
           console.error("Error uploading photo:", photoError);
-          // Continue with other photos even if one fails
         }
       }
     }
 
-    // Create medical history record
     const medicalHistory = await prisma.medicalHistory.create({
       data: {
-        patientId,
+        patientId: resolvedPatientId,
         type,
-        resultDate: resultDate,
+        resultDate,
         lab: lab || null,
         remarks,
         photos: photoUrls,
       },
     });
 
-    return NextResponse.json({ message: "Medical history created successfully", medicalHistory });
+    return NextResponse.json({
+      message: "Medical history created successfully",
+      medicalHistory,
+      resolvedPatientId,
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Failed to create medical history" }, { status: 500 });
+    console.error("[ADMIN_MEDICAL_HISTORY_POST]", error);
+    return NextResponse.json(
+      { error: "Failed to create medical history" },
+      { status: 500 }
+    );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ patientId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true, isActive: true },
+    });
+
+    if (!user || user.role !== "ADMIN" || !user.isActive) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { patientId } = await params;
+
+    if (!patientId) {
+      return NextResponse.json({ error: "Patient ID is required" }, { status: 400 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const historyId = searchParams.get("historyId");
+
+    if (!historyId) {
+      return NextResponse.json({ error: "History ID is required" }, { status: 400 });
+    }
+
+    const resolvedPatientId = await resolvePatientId(patientId);
+
+    if (!resolvedPatientId) {
+      return NextResponse.json(
+        {
+          error: "Invalid patient",
+          receivedPatientId: patientId,
+        },
+        { status: 400 }
+      );
+    }
+
+    const medicalHistory = await prisma.medicalHistory.findFirst({
+      where: {
+        id: historyId,
+        patientId: resolvedPatientId,
+      },
+    });
+
+    if (!medicalHistory) {
+      return NextResponse.json({ error: "Medical history not found" }, { status: 404 });
+    }
+
+    if (medicalHistory.photos && medicalHistory.photos.length > 0) {
+      const uploadDir = join(process.cwd(), "public", "uploads", "medical-history");
+
+      for (const photoUrl of medicalHistory.photos) {
+        const fileName = photoUrl.replace("/uploads/medical-history/", "");
+        const filePath = join(uploadDir, fileName);
+
+        try {
+          const { default: fs } = await import("fs");
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch {}
+      }
+    }
+
+    await prisma.medicalHistory.delete({
+      where: { id: historyId },
+    });
+
+    return NextResponse.json({
+      message: "Medical history deleted successfully",
+      resolvedPatientId,
+    });
+  } catch (error) {
+    console.error("[ADMIN_MEDICAL_HISTORY_DELETE]", error);
+    return NextResponse.json(
+      { error: "Failed to delete medical history" },
+      { status: 500 }
+    );
+  }
+}
+

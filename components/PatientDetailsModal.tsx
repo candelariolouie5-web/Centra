@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import PatientNotes from "./PatientNotes";
 
 /* ---------------- ICON ---------------- */
@@ -10,11 +11,6 @@ const Icon = ({ name, className }: { name: string; className?: string }) => {
     close: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    ),
-    medical: (
-      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
       </svg>
     ),
   };
@@ -27,6 +23,25 @@ const Icon = ({ name, className }: { name: string; className?: string }) => {
 const displayValue = (value?: string | null) => {
   if (!value || String(value).trim() === "") return "Not provided";
   return value;
+};
+
+const getResolvedPatientId = (patient: any) => {
+  const candidates = [
+    patient?.user?.id,
+    patient?.patient?.id,
+    patient?.profile?.id,
+    patient?.account?.id,
+    patient?.patientUserId,
+    patient?.userId,
+    patient?.patientId,
+    patient?.id,
+  ];
+
+  const valid = candidates.find(
+    (value) => typeof value === "string" && value.trim().length > 0
+  );
+
+  return valid || "";
 };
 
 /* ---------------- FIELD ---------------- */
@@ -135,37 +150,73 @@ const PatientDetailsModal = ({
   onCreateMedicalHistory,
   onRefreshMedicalHistory,
 }: any) => {
+  const pathname = usePathname();
   const [medicalHistories, setMedicalHistories] = useState<MedicalHistory[]>([]);
   const [loadingMedicalHistory, setLoadingMedicalHistory] = useState(false);
+  const [medicalHistoryError, setMedicalHistoryError] = useState("");
+
+  const resolvedPatientId = getResolvedPatientId(patient);
 
   useEffect(() => {
-    if (tab === "medical" && patient?.id) {
+    if (tab === "medical" && resolvedPatientId) {
       fetchMedicalHistories();
     }
-  }, [tab, patient?.id]);
-
-  useEffect(() => {
-    if (tab === "medical" && patient?.id && onRefreshMedicalHistory) {
-      fetchMedicalHistories();
-    }
-  }, [onRefreshMedicalHistory]);
+  }, [tab, resolvedPatientId, pathname, onRefreshMedicalHistory]);
 
   const fetchMedicalHistories = async () => {
-    if (!patient?.id) return;
+    if (!resolvedPatientId) {
+      setMedicalHistories([]);
+      setMedicalHistoryError("Missing patient user ID");
+      return;
+    }
 
     setLoadingMedicalHistory(true);
+    setMedicalHistoryError("");
 
     try {
-      const userRole = typeof window !== 'undefined' ? (window as any).session?.user?.role : 'ADMIN';
-      const apiPath = userRole === 'ADMIN' ? `/api/admin/patients/${patient.id}/medical-history` : `/api/doctor/patients/${patient.id}/medical-history`;
-      const response = await fetch(apiPath);
-      const data = await response.json();
+      const isAdminPortal = pathname.startsWith("/admin");
+      const isDoctorPortal = pathname.startsWith("/doctor");
 
-      if (response.ok) {
-        setMedicalHistories(data.medicalHistories || []);
+      if (!isAdminPortal && !isDoctorPortal) {
+        setMedicalHistories([]);
+        setMedicalHistoryError("Unknown portal path");
+        return;
       }
-    } catch (err) {
+
+      const apiPath = isAdminPortal
+        ? `/api/admin/patients/${resolvedPatientId}/medical-history`
+        : `/api/doctor/patients/${resolvedPatientId}/medical-history`;
+
+      const response = await fetch(apiPath, { cache: "no-store" });
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok) {
+        console.error("Failed to fetch medical histories:", {
+          status: response.status,
+          patient,
+          resolvedPatientId,
+          apiPath,
+          data,
+        });
+
+        setMedicalHistories([]);
+        setMedicalHistoryError(
+          data?.error || `Failed to fetch medical histories (HTTP ${response.status})`
+        );
+        return;
+      }
+
+      setMedicalHistories(Array.isArray(data?.medicalHistories) ? data.medicalHistories : []);
+    } catch (err: any) {
       console.error("Failed to fetch medical histories:", err);
+      setMedicalHistories([]);
+      setMedicalHistoryError(err?.message || "Failed to fetch medical histories");
     } finally {
       setLoadingMedicalHistory(false);
     }
@@ -183,8 +234,6 @@ const PatientDetailsModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
       <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] bg-slate-50 shadow-2xl ring-1 ring-slate-200">
-        {/* HEADER */}
-
         <div className="border-b border-slate-200 bg-white px-6 py-5 sm:px-7">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
@@ -210,8 +259,6 @@ const PatientDetailsModal = ({
             </button>
           </div>
 
-          {/* TABS */}
-
           <div className="mt-5 flex flex-wrap gap-2">
             {tabs.map((t) => {
               const active = tab === t.id;
@@ -232,8 +279,6 @@ const PatientDetailsModal = ({
             })}
           </div>
         </div>
-
-        {/* CONTENT */}
 
         <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-7">
           {tab === "info" && (
@@ -269,7 +314,7 @@ const PatientDetailsModal = ({
               title="Next Treatment"
               subtitle="Planned treatment and follow-up details."
             >
-              {(!patient?.soapNote?.plan && !patient?.soapNote?.followUp) ? (
+              {!patient?.soapNote?.plan && !patient?.soapNote?.followUp ? (
                 <Placeholder text="No next treatment details available" />
               ) : (
                 <div className="px-4 sm:px-0">
@@ -312,6 +357,10 @@ const PatientDetailsModal = ({
               {loadingMedicalHistory ? (
                 <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
                   Loading medical histories...
+                </div>
+              ) : medicalHistoryError ? (
+                <div className="rounded-2xl bg-red-50 px-6 py-10 text-center text-sm font-medium text-red-600 ring-1 ring-red-200">
+                  {medicalHistoryError}
                 </div>
               ) : medicalHistories.length === 0 ? (
                 <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
@@ -385,7 +434,6 @@ const PatientDetailsModal = ({
               )}
             </SectionCard>
           )}
-
         </div>
       </div>
     </div>

@@ -314,6 +314,8 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     loadData();
   }, [session, status, fetchAppointments, fetchBlockedDates]);
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
   const updateAppointmentStatus = useCallback(async (
     id: string,
     newStatus: "CONFIRMED" | "REJECTED" | "CANCELLED"
@@ -323,6 +325,7 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
       return;
     }
 
+    setUpdatingId(id);
     try {
       const userRole = session?.user?.role;
       const updateAppointmentPath = userRole === 'ADMIN' ? '/api/admin/appointment' : '/api/doctor/appointment';
@@ -333,11 +336,20 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
         body: JSON.stringify({ id, status: newStatus }),
       });
 
+      const responseText = await res.text();
+      let errorMessage = "Failed to update appointment";
+
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Failed to update appointment");
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : responseText;
+        } catch {
+          errorMessage = responseText;
+        }
+        throw new Error(errorMessage);
       }
 
+      // Optimistic update only on success
       setAppointments((prev) =>
         prev.map((appointment) =>
           appointment.id === id ? { ...appointment, status: newStatus } : appointment
@@ -346,8 +358,12 @@ const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     } catch (err) {
       console.error("Failed to update appointment", err);
       alert(err instanceof Error ? err.message : "Failed to update appointment");
+      // Revert optimistic update on error by refetching
+      fetchAppointments();
+    } finally {
+      setUpdatingId(null);
     }
-  }, [session]);
+  }, [session, fetchAppointments]);
 
   const handleBlockDates = useCallback(async (
     startDate: string,

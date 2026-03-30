@@ -1,436 +1,654 @@
 "use client";
- 
-import { useState, useEffect } from "react";
-import { FieldBlock } from "./UIHelpers";
- 
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
 export type Prescription = {
-  drug: string;
-  dose: string;
-  frequency: string;
-  duration: string;
+  medicationId?: string | null;
+  generic: string;
+  brandName: string;
+  quantity: string;
+  dosage: string;
   instructions: string;
-  form: string;
 };
- 
-type DrugData = {
-  name: string;
-  category: "ENT" | "Aesthetics";
-  dose: string;
-  frequency: string;
-  duration: string;
-  form: string;
+
+type Medication = {
+  id: string;
+  generic: string;
+  brandName: string;
+  quantity: string;
+  dosage: string;
+  instructions: string;
 };
- 
-const INITIAL_DRUG_LIST: DrugData[] = [
-  { name: "Amoxicillin", category: "ENT", dose: "500mg", frequency: "3 times daily", duration: "7 days", form: "Tablet" },
-  { name: "Azithromycin", category: "ENT", dose: "250mg", frequency: "Once daily", duration: "5 days", form: "Tablet" },
-  { name: "Cefuroxime", category: "ENT", dose: "500mg", frequency: "2 times daily", duration: "7 days", form: "Syrup" },
-  { name: "Dexamethasone", category: "ENT", dose: "4mg", frequency: "Once daily", duration: "3 days", form: "Tablet" },
-  { name: "Hyaluronic Acid", category: "Aesthetics", dose: "1 vial", frequency: "Once", duration: "Single session", form: "Vial" },
-  { name: "Botulinum Toxin", category: "Aesthetics", dose: "20 units", frequency: "Once", duration: "Single session", form: "Injection" },
-  { name: "Vitamin C Serum", category: "Aesthetics", dose: "Apply 2 drops", frequency: "Daily", duration: "2 weeks", form: "Topical" },
-  { name: "Retinol Cream", category: "Aesthetics", dose: "Pea-sized amount", frequency: "Daily", duration: "4 weeks", form: "Topical" },
-];
- 
-const PrescriptionModal = ({
-  open,
-  onClose,
-  onSave,
-  defaultValues,
-}: {
+
+type PrescriptionModalProps = {
   open: boolean;
   onClose: () => void;
   onSave: (rx: Prescription) => void;
   defaultValues?: Prescription;
-}) => {
-  // Main modal state
-  const [drug, setDrug] = useState("");
-  const [dose, setDose] = useState("");
-  const [frequency, setFrequency] = useState("");
-  const [duration, setDuration] = useState("");
+};
+
+export default function PrescriptionModal({
+  open,
+  onClose,
+  onSave,
+  defaultValues,
+}: PrescriptionModalProps) {
+  const [medicationId, setMedicationId] = useState<string | null>(null);
+
+  const [generic, setGeneric] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [dosage, setDosage] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [form, setForm] = useState("");
- 
-  const [drugs, setDrugs] = useState<DrugData[]>(INITIAL_DRUG_LIST);
-  const [filtered, setFiltered] = useState<DrugData[]>([]);
+
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [loadingMedications, setLoadingMedications] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
- 
+
   const [showAddMedication, setShowAddMedication] = useState(false);
-  const [newDrug, setNewDrug] = useState("");
-  const [newDose, setNewDose] = useState("");
-  const [newFrequency, setNewFrequency] = useState("");
-  const [newDuration, setNewDuration] = useState("");
+  const [savingMedication, setSavingMedication] = useState(false);
+
+  const [newGeneric, setNewGeneric] = useState("");
+  const [newBrandName, setNewBrandName] = useState("");
+  const [newQuantity, setNewQuantity] = useState("");
+  const [newDosage, setNewDosage] = useState("");
   const [newInstructions, setNewInstructions] = useState("");
-  const [newForm, setNewForm] = useState("");
- 
-  // Load defaultValues
+
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
+    if (!open) return;
+
     if (defaultValues) {
-      setDrug(defaultValues.drug);
-      setDose(defaultValues.dose);
-      setFrequency(defaultValues.frequency);
-      setDuration(defaultValues.duration);
-      setInstructions(defaultValues.instructions);
-      setForm(defaultValues.form || "");
+      setMedicationId(defaultValues.medicationId ?? null);
+      setGeneric(defaultValues.generic ?? "");
+      setBrandName(defaultValues.brandName ?? "");
+      setQuantity(defaultValues.quantity ?? "");
+      setDosage(defaultValues.dosage ?? "");
+      setInstructions(defaultValues.instructions ?? "");
     } else {
-      setDrug("");
-      setDose("");
-      setFrequency("");
-      setDuration("");
-      setInstructions("");
-      setForm("");
+      resetPrescriptionForm();
     }
   }, [defaultValues, open]);
- 
-  // Filter suggestions
+
   useEffect(() => {
-    if (!drug.trim()) {
-      setFiltered([]);
+    if (!open) return;
+    void fetchMedications();
+  }, [open]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!showSuggestions) return;
+      if (!panelRef.current) return;
+      if (!panelRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showSuggestions]);
+
+  const filteredMedications = useMemo(() => {
+    const query = generic.trim().toLowerCase();
+
+    if (!query) return [];
+
+    return medications.filter((med) => {
+      const genericMatch = med.generic.toLowerCase().includes(query);
+      const brandMatch = med.brandName.toLowerCase().includes(query);
+      return genericMatch || brandMatch;
+    });
+  }, [generic, medications]);
+
+  useEffect(() => {
+    if (!generic.trim()) {
       setShowSuggestions(false);
       return;
     }
- 
-    const matches = drugs.filter((d) =>
-      d.name.toLowerCase().includes(drug.toLowerCase())
-    );
- 
-    setFiltered(matches);
-    setShowSuggestions(matches.length > 0);
-  }, [drug, drugs]);
- 
-  const handleSelect = (drugName: string) => {
-    const selected = drugs.find((d) => d.name === drugName);
-    if (!selected) return;
- 
-    setDrug(selected.name);
-    setDose(selected.dose);
-    setFrequency(selected.frequency);
-    setDuration(selected.duration);
-    setForm(selected.form);
+
+    setShowSuggestions(filteredMedications.length > 0);
+  }, [generic, filteredMedications]);
+
+  function resetPrescriptionForm() {
+    setMedicationId(null);
+    setGeneric("");
+    setBrandName("");
+    setQuantity("");
+    setDosage("");
+    setInstructions("");
     setShowSuggestions(false);
-  };
- 
-  const handleSavePrescription = () => {
-    if (!drug.trim()) return;
-    onSave({ drug, dose, frequency, duration, instructions, form });
-    setShowSuggestions(false);
-  };
- 
-  const handleAddMedication = () => {
-    if (!newDrug.trim()) return;
- 
-    const newMed: DrugData = {
-      name: newDrug,
-      category: "ENT",
-      dose: newDose,
-      frequency: newFrequency,
-      duration: newDuration,
-      form: newForm,
-    };
- 
-    setDrugs((prev) => [...prev, newMed]);
- 
-    setNewDrug("");
-    setNewDose("");
-    setNewFrequency("");
-    setNewDuration("");
+  }
+
+  function resetAddMedicationForm() {
+    setNewGeneric("");
+    setNewBrandName("");
+    setNewQuantity("");
+    setNewDosage("");
     setNewInstructions("");
-    setNewForm("");
-    setShowAddMedication(false);
-  };
- 
+  }
+
+  async function fetchMedications() {
+    try {
+      setLoadingMedications(true);
+
+      const res = await fetch("/api/medications", {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const data = await safeJson(res);
+        throw new Error(data?.error || "Failed to load medications");
+      }
+
+      const data = await safeJson(res);
+      const meds = Array.isArray(data?.medications) ? data.medications : [];
+      setMedications(meds);
+    } catch (error) {
+      console.error("Failed to fetch medications:", error);
+      setMedications([]);
+    } finally {
+      setLoadingMedications(false);
+    }
+  }
+
+  function handleSelectMedication(med: Medication) {
+    setMedicationId(med.id);
+    setGeneric(med.generic || "");
+    setBrandName(med.brandName || "");
+    setQuantity(med.quantity || "");
+    setDosage(med.dosage || "");
+    setInstructions(med.instructions || "");
+    setShowSuggestions(false);
+  }
+
+  function handleGenericChange(value: string) {
+    setMedicationId(null);
+    setGeneric(value);
+  }
+
+  function handleSavePrescription() {
+    if (!generic.trim()) return;
+
+    onSave({
+      medicationId,
+      generic: generic.trim(),
+      brandName: brandName.trim(),
+      quantity: quantity.trim(),
+      dosage: dosage.trim(),
+      instructions: instructions.trim(),
+    });
+
+    setShowSuggestions(false);
+  }
+
+  async function handleAddMedication() {
+    if (!newGeneric.trim()) return;
+
+    try {
+      setSavingMedication(true);
+
+      const payload = {
+        generic: newGeneric.trim(),
+        brandName: newBrandName.trim(),
+        quantity: newQuantity.trim(),
+        dosage: newDosage.trim(),
+        instructions: newInstructions.trim(),
+      };
+
+      const res = await fetch("/api/medications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to save medication");
+      }
+
+      const createdMedication: Medication | undefined = data?.medication;
+
+      if (createdMedication) {
+        setMedications((prev) => {
+          const exists = prev.some((item) => item.id === createdMedication.id);
+          if (exists) return prev;
+          return [createdMedication, ...prev];
+        });
+
+        handleSelectMedication(createdMedication);
+      } else {
+        await fetchMedications();
+
+        setMedicationId(null);
+        setGeneric(payload.generic);
+        setBrandName(payload.brandName);
+        setQuantity(payload.quantity);
+        setDosage(payload.dosage);
+        setInstructions(payload.instructions);
+      }
+
+      resetAddMedicationForm();
+      setShowAddMedication(false);
+    } catch (error) {
+      console.error("Failed to add medication:", error);
+      alert(error instanceof Error ? error.message : "Failed to add medication");
+    } finally {
+      setSavingMedication(false);
+    }
+  }
+
+  async function safeJson(res: Response) {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
   if (!open) return null;
- 
-  const groupedSuggestions: Record<string, DrugData[]> = {};
-  filtered.forEach((d) => {
-    if (!groupedSuggestions[d.category]) groupedSuggestions[d.category] = [];
-    groupedSuggestions[d.category].push(d);
-  });
- 
+
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      {/* Backdrop for side panel */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in">
       {showAddMedication && (
         <div
-          className="absolute inset-0 bg-black/20 z-40"
+          className="absolute inset-0 z-40 bg-black/20"
           onClick={() => setShowAddMedication(false)}
         />
       )}
-     
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
-        {/* HEADER */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-linear-to-r from-white to-gray-50/50">
+
+      <div
+        ref={panelRef}
+        className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+      >
+        <div className="flex items-center justify-between border-b border-gray-100 bg-linear-to-r from-white to-gray-50/50 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100">
+              <svg
+                className="h-5 w-5 text-indigo-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                />
               </svg>
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
                 {defaultValues ? "Edit Prescription" : "Add Prescription"}
               </h2>
-              <p className="text-xs text-gray-500">Enter medication details below</p>
+              <p className="text-xs text-gray-500">
+                Search saved medications or add a new one
+              </p>
             </div>
           </div>
+
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
- 
-        {/* BODY */}
-        <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-          {/* Drug Search */}
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div className="relative">
-            <FieldBlock
-              label="Drug Name"
-              placeholder="Search medication..."
-              value={drug}
-              onChange={(e) => setDrug(e.target.value)}
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Generic
+            </label>
+            <input
+              type="text"
+              value={generic}
+              onChange={(e) => handleGenericChange(e.target.value)}
+              onFocus={() => {
+                if (filteredMedications.length > 0) setShowSuggestions(true);
+              }}
+              placeholder="Search generic or brand name..."
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
- 
+
             {showSuggestions && (
-              <div className="absolute top-[4.5rem] left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto z-50">
-                {Object.entries(groupedSuggestions).map(([cat, drugsList]) => (
-                  <div key={cat}>
-                    <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/80 border-b border-gray-100 sticky top-0">
-                      {cat} Medications
-                    </div>
-                    {drugsList.map((d) => (
-                      <div
-                        key={d.name}
-                        onClick={() => handleSelect(d.name)}
-                        className="px-4 py-3 cursor-pointer hover:bg-indigo-50/70 border-b border-gray-50 last:border-b-0 transition-colors group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-800 group-hover:text-indigo-700">{d.name}</span>
-                          <span className="text-xs text-gray-400 group-hover:text-indigo-500">{d.form}</span>
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {d.dose} • {d.frequency}
-                        </div>
-                      </div>
-                    ))}
+              <div className="absolute left-0 right-0 top-[4.5rem] z-50 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                {loadingMedications ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">
+                    Loading medications...
                   </div>
-                ))}
+                ) : filteredMedications.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">
+                    No saved medications found.
+                  </div>
+                ) : (
+                  filteredMedications.map((med) => (
+                    <button
+                      key={med.id}
+                      type="button"
+                      onClick={() => handleSelectMedication(med)}
+                      className="w-full border-b border-gray-50 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-indigo-50/70"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-gray-800">
+                          {med.generic}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {med.brandName || "No brand"}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-gray-400">
+                        {med.dosage || "No dosage"}
+                        {med.quantity ? ` • ${med.quantity}` : ""}
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
- 
-          {/* Grid Fields */}
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Dose</label>
+              <label className="text-sm font-medium text-gray-700">
+                Brand Name
+              </label>
               <input
                 type="text"
-                value={dose}
-                onChange={(e) => setDose(e.target.value)}
-                placeholder="e.g., 500mg"
-                className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                value={brandName}
+                onChange={(e) => {
+                  setMedicationId(null);
+                  setBrandName(e.target.value);
+                }}
+                placeholder="e.g., Biogesic"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Frequency</label>
+              <label className="text-sm font-medium text-gray-700">
+                Quantity
+              </label>
               <input
                 type="text"
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value)}
-                placeholder="e.g., 3 times daily"
-                className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                value={quantity}
+                onChange={(e) => {
+                  setMedicationId(null);
+                  setQuantity(e.target.value);
+                }}
+                placeholder="e.g., 10 tablets"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Duration</label>
+              <label className="text-sm font-medium text-gray-700">
+                Dosage
+              </label>
               <input
                 type="text"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="e.g., 7 days"
-                className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                value={dosage}
+                onChange={(e) => {
+                  setMedicationId(null);
+                  setDosage(e.target.value);
+                }}
+                placeholder="e.g., 500mg twice a day"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Form</label>
+              <label className="text-sm font-medium text-gray-700">
+                Medication ID
+              </label>
               <input
                 type="text"
-                value={form}
-                onChange={(e) => setForm(e.target.value)}
-                placeholder="e.g., Tablet"
-                className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                value={medicationId ?? ""}
+                readOnly
+                placeholder="Auto-filled when selecting saved medication"
+                className="w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 placeholder-gray-400"
               />
             </div>
           </div>
- 
-          {/* Instructions */}
+
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Instructions</label>
+            <label className="text-sm font-medium text-gray-700">
+              Instructions
+            </label>
             <textarea
-              rows={3}
+              rows={4}
               value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
+              onChange={(e) => {
+                setMedicationId(null);
+                setInstructions(e.target.value);
+              }}
               placeholder="Additional instructions for the patient..."
-              className="w-full rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none transition-all"
+              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         </div>
- 
-        {/* FOOTER */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center">
+
+        <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 px-6 py-4">
           <button
+            type="button"
             onClick={() => setShowAddMedication(true)}
-            className="px-4 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 text-sm font-medium transition-all flex items-center gap-2"
+            className="flex items-center gap-2 rounded-xl border border-indigo-200 px-4 py-2.5 text-sm font-medium text-indigo-600 transition-all hover:border-indigo-300 hover:bg-indigo-50"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
             </svg>
             Add Medication
           </button>
- 
+
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300 text-sm font-medium transition-all"
+              className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-100"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSavePrescription}
-              disabled={!drug.trim()}
-              className="px-5 py-2.5 bg-linear-to-r from-indigo-600 to-violet-600 text-white rounded-xl hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all shadow-sm hover:shadow"
+              disabled={!generic.trim()}
+              className="rounded-xl bg-linear-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-indigo-700 hover:to-violet-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
             >
               {defaultValues ? "Save Changes" : "Add Prescription"}
             </button>
           </div>
         </div>
- 
-        {/* SIDE PANEL - SLIDING DRAWER */}
+
         {showAddMedication && (
-          <div className="absolute top-0 right-0 h-full w-full sm:w-[360px] bg-white border-l border-gray-200 shadow-xl z-50 flex flex-col animate-slide-in-right">
-            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-linear-to-r from-white to-gray-50/50">
+          <div className="absolute right-0 top-0 z-50 flex h-full w-full flex-col border-l border-gray-200 bg-white shadow-xl animate-slide-in-right sm:w-[380px]">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-linear-to-r from-white to-gray-50/50 px-5 py-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100">
+                  <svg
+                    className="h-4 w-4 text-violet-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-gray-900">Add New Medication</h3>
+                <h3 className="font-semibold text-gray-900">
+                  Add New Medication
+                </h3>
               </div>
+
               <button
+                type="button"
                 onClick={() => setShowAddMedication(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
- 
-            <div className="px-5 py-5 space-y-4 flex-1 overflow-y-auto">
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Drug Name *</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Generic *
+                </label>
                 <input
                   type="text"
-                  value={newDrug}
-                  onChange={(e) => setNewDrug(e.target.value)}
-                  placeholder="Enter medication name"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
+                  value={newGeneric}
+                  onChange={(e) => setNewGeneric(e.target.value)}
+                  placeholder="Enter generic name"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Dose</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Brand Name
+                </label>
                 <input
                   type="text"
-                  value={newDose}
-                  onChange={(e) => setNewDose(e.target.value)}
-                  placeholder="e.g., 500mg"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
+                  value={newBrandName}
+                  onChange={(e) => setNewBrandName(e.target.value)}
+                  placeholder="Enter brand name"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Frequency</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Quantity
+                </label>
                 <input
                   type="text"
-                  value={newFrequency}
-                  onChange={(e) => setNewFrequency(e.target.value)}
-                  placeholder="e.g., 3 times daily"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
+                  value={newQuantity}
+                  onChange={(e) => setNewQuantity(e.target.value)}
+                  placeholder="e.g., 10 tablets"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Duration</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Dosage
+                </label>
                 <input
                   type="text"
-                  value={newDuration}
-                  onChange={(e) => setNewDuration(e.target.value)}
-                  placeholder="e.g., 7 days"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
+                  value={newDosage}
+                  onChange={(e) => setNewDosage(e.target.value)}
+                  placeholder="e.g., 500mg twice a day"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Form</label>
-                <input
-                  type="text"
-                  value={newForm}
-                  onChange={(e) => setNewForm(e.target.value)}
-                  placeholder="e.g., Tablet, Syrup, Injection"
-                  className="w-full rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Instructions</label>
+                <label className="text-sm font-medium text-gray-700">
+                  Instructions
+                </label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={newInstructions}
                   onChange={(e) => setNewInstructions(e.target.value)}
                   placeholder="Additional instructions..."
-                  className="w-full rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-900 border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none transition-all"
+                  className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
               </div>
             </div>
- 
-            <div className="px-5 py-4 border-t border-gray-100 flex justify-end bg-gray-50/50 gap-3">
+
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 px-5 py-4">
               <button
+                type="button"
                 onClick={() => setShowAddMedication(false)}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 text-sm font-medium transition-all"
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleAddMedication}
-                disabled={!newDrug.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all shadow-sm"
+                disabled={!newGeneric.trim() || savingMedication}
+                className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:from-violet-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Add Medication
+                {savingMedication ? "Saving..." : "Add Medication"}
               </button>
             </div>
           </div>
         )}
       </div>
- 
-      {/* CSS Animations */}
+
       <style jsx>{`
         @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
+
         @keyframes slide-in-right {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
+          from {
+            transform: translateX(100%);
+          }
+          to {
+            transform: translateX(0);
+          }
         }
+
         .animate-fade-in {
           animation: fade-in 0.2s ease-out;
         }
+
         .animate-slide-in-right {
           animation: slide-in-right 0.3s ease-out;
         }
       `}</style>
     </div>
   );
-};
- 
-export default PrescriptionModal;
+}

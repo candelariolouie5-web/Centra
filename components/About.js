@@ -35,22 +35,22 @@ export default function CentraClinicFeatures() {
   return (
     <>
       {/* Features Section */}
-      <section className="bg-white">
+      <section className="bg-[#f7f6f2]">
         <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
           <div className="grid grid-cols-1 gap-y-16 lg:grid-cols-2 lg:gap-x-8 lg:items-center">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight text-[#0d2323] sm:text-4xl">
                 Discover Centra Clinic Product Features
               </h2>
-              <p className="mt-4 text-gray-500">
+              <p className="mt-4 text-[#5f7b79]">
                 Centra Clinic PH offers advanced healthcare solutions designed for your convenience, comfort, and safety.
               </p>
 
               <dl className="mt-16 grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 sm:gap-y-16 lg:gap-x-8">
                 {features.map((feature) => (
-                  <div key={feature.name} className="border-t border-gray-200 pt-4">
-                    <dt className="font-medium text-gray-900">{feature.name}</dt>
-                    <dd className="mt-2 text-sm text-gray-500">{feature.description}</dd>
+                  <div key={feature.name} className="border-t border-[#dbe9e7] pt-4">
+                    <dt className="font-medium text-[#0d2323]">{feature.name}</dt>
+                    <dd className="mt-2 text-sm text-[#5f7b79]">{feature.description}</dd>
                   </div>
                 ))}
               </dl>
@@ -62,7 +62,7 @@ export default function CentraClinicFeatures() {
                   key={index}
                   src={img.src}
                   alt={img.alt}
-                  className="rounded-lg bg-gray-100 object-cover w-full h-full"
+                  className="rounded-lg bg-[#edf6f5] object-cover w-full h-full"
                 />
               ))}
             </div>
@@ -70,7 +70,7 @@ export default function CentraClinicFeatures() {
         </div>
 
         {/* Work With Us */}
-        <div className="relative isolate overflow-hidden bg-white py-24 sm:py-32">
+        <div className="relative isolate overflow-hidden bg-[#eef7f6] py-24 sm:py-32">
           <img
             alt=""
             src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?ixlib=rb-4.0.3&auto=format&fit=crop&w=2830&h=1500&q=80"
@@ -79,18 +79,18 @@ export default function CentraClinicFeatures() {
 
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-2xl lg:mx-0">
-              <h2 className="text-5xl font-semibold tracking-tight text-gray-900 sm:text-7xl">
+              <h2 className="text-5xl font-semibold tracking-tight text-[#0d2323] sm:text-7xl">
                 Work with us
               </h2>
-              <p className="mt-8 text-lg leading-8 text-gray-700 sm:text-xl">
+              <p className="mt-8 text-lg leading-8 text-[#5f7b79] sm:text-xl">
                 We’re seeking passionate individuals who are eager to make an impact at Centra Clinic.
               </p>
             </div>
 
             <div className="mx-auto mt-10 max-w-2xl lg:mx-0 lg:max-w-none">
-              <div className="grid grid-cols-1 gap-x-8 gap-y-6 text-base font-semibold text-gray-900 sm:grid-cols-2 md:flex lg:gap-x-10">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-6 text-base font-semibold text-[#0d2323] sm:grid-cols-2 md:flex lg:gap-x-10">
                 {links.map((link) => (
-                  <a key={link.name} href={link.href}>
+                  <a key={link.name} href={link.href} className="hover:text-[#1d8d8a] transition-colors">
                     {link.name} <span aria-hidden="true">&rarr;</span>
                   </a>
                 ))}
@@ -99,8 +99,8 @@ export default function CentraClinicFeatures() {
               <dl className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
                 {stats.map((stat) => (
                   <div key={stat.name} className="flex flex-col-reverse gap-1">
-                    <dt className="text-base text-gray-700">{stat.name}</dt>
-                    <dd className="text-4xl font-semibold tracking-tight text-gray-900">{stat.value}</dd>
+                    <dt className="text-base text-[#5f7b79]">{stat.name}</dt>
+                    <dd className="text-4xl font-semibold tracking-tight text-[#0d2323]">{stat.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -143,13 +143,13 @@ function BlogSection() {
   ];
 
   return (
-    <section className="bg-white py-24 sm:py-32">
+    <section className="bg-[#f7f6f2] py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+          <h2 className="text-4xl font-bold tracking-tight text-[#0d2323] sm:text-5xl">
             From the Blog
           </h2>
-          <p className="mt-2 text-lg text-gray-600">
+          <p className="mt-2 text-lg text-[#5f7b79]">
             Learn how Centra Clinic PH enhances patient care.
           </p>
         </div>
@@ -165,10 +165,10 @@ function BlogSection() {
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
                 style={{ backgroundImage: `url(${post.imageUrl})` }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0d2323]/75 via-[#0d2323]/30 to-transparent" />
 
               <div className="relative p-6 flex flex-col justify-end h-72">
-                <p className="text-xs text-gray-200">
+                <p className="text-xs text-[#e8f3f2]">
                   {post.date} • {post.author.name}
                 </p>
                 <h3 className="mt-2 text-lg font-semibold text-white">

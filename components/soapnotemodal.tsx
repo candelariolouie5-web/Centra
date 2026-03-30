@@ -264,21 +264,42 @@ function isPlanScheduleLine(line: string) {
     .startsWith(FOLLOW_UP_MARKER.toLowerCase());
 }
 
+function getPrescriptionTitle(rx: Prescription) {
+  return rx.brandName?.trim()
+    ? `${rx.generic} (${rx.brandName})`
+    : rx.generic;
+}
+
+function getPrescriptionMeta(rx: Prescription) {
+  return [rx.quantity, rx.dosage].filter(Boolean).join(" · ");
+}
+
+async function safeJson(res: Response) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 const SoapNoteModal = ({
   open,
   onClose,
   patient,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   patient: Patient | null;
+  onSaved?: () => void;
 }) => {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const [openPrescription, setOpenPrescription] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadingExistingNote, setLoadingExistingNote] = useState(false);
 
   const [open3DModal, setOpen3DModal] = useState(false);
   const [openRoomModal, setOpenRoomModal] = useState(false);
@@ -313,7 +334,54 @@ const SoapNoteModal = ({
     setFollowUp("");
     setSelectedRoom(null);
     setScheduledProcedure(null);
+    setPrescriptions([]);
+    setSelectedMaterials([]);
+    setDiagnostics([]);
     setError(null);
+    setShowPreview(false);
+  };
+
+  const hydrateFromSoapNote = (note: any) => {
+    const rawPrescriptions = Array.isArray(note?.prescriptions)
+      ? note.prescriptions
+      : Array.isArray(note?.prescriptionsList)
+        ? note.prescriptionsList
+        : [];
+
+    const normalizedPrescriptions: Prescription[] = rawPrescriptions
+      .map((rx: any) => ({
+        medicationId: rx?.medicationId ?? null,
+        generic: typeof rx?.generic === "string" ? rx.generic : "",
+        brandName: typeof rx?.brandName === "string" ? rx.brandName : "",
+        quantity: typeof rx?.quantity === "string" ? rx.quantity : "",
+        dosage:
+          typeof rx?.dosage === "string"
+            ? rx.dosage
+            : [rx?.dose, rx?.frequency, rx?.duration].filter(Boolean).join(" • "),
+        instructions:
+          typeof rx?.instructions === "string" ? rx.instructions : "",
+      }))
+      .filter((rx) => rx.generic.trim().length > 0);
+
+    setChiefComplaint(typeof note?.chiefComplaint === "string" ? note.chiefComplaint : "");
+    setHistoryOfPresentIllness(
+      typeof note?.historyOfIllness === "string" ? note.historyOfIllness : ""
+    );
+    setRemarks(typeof note?.remarks === "string" ? note.remarks : "");
+    setDiagnosis(typeof note?.diagnosis === "string" ? note.diagnosis : "");
+    setPlan(typeof note?.plan === "string" ? note.plan : "");
+    setFollowUp(typeof note?.followUp === "string" ? note.followUp : "");
+    setPrescriptions(normalizedPrescriptions);
+    setSelectedMaterials([]);
+    setSelectedRoom(null);
+    setScheduledProcedure(null);
+    setDiagnostics(
+      typeof note?.imageData === "string" && note.imageData.trim()
+        ? [{ imageData: note.imageData, strokes: {} }]
+        : []
+    );
+    setError(null);
+    setShowPreview(false);
   };
 
   const clearScheduledProcedure = () => {
@@ -324,33 +392,102 @@ const SoapNoteModal = ({
   };
 
   useEffect(() => {
-    if (!open || typeof window === "undefined") return;
+    if (!open || !patient?.id || status === "loading") return;
 
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      resetDraftFields();
-      return;
-    }
+    let cancelled = false;
 
-    try {
-      const parsed = JSON.parse(raw);
-      setDiagnosis(parsed.diagnosis ?? "");
-      setChiefComplaint(parsed.chiefComplaint ?? "");
-      setHistoryOfPresentIllness(parsed.historyOfPresentIllness ?? "");
-      setRemarks(parsed.remarks ?? "");
-      setPlan(parsed.plan ?? "");
-      setFollowUp(parsed.followUp ?? "");
-      setSelectedRoom(
-        parsed.selectedRoom && isRoomType(parsed.selectedRoom)
-          ? parsed.selectedRoom
-          : null
-      );
-      setScheduledProcedure(parsed.scheduledProcedure ?? null);
-      setError(null);
-    } catch {
-      resetDraftFields();
-    }
-  }, [open, storageKey]);
+    const loadSoapNote = async () => {
+      const raw =
+        typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+
+          if (cancelled) return;
+
+          setDiagnosis(parsed.diagnosis ?? "");
+          setChiefComplaint(parsed.chiefComplaint ?? "");
+          setHistoryOfPresentIllness(parsed.historyOfPresentIllness ?? "");
+          setRemarks(parsed.remarks ?? "");
+          setPlan(parsed.plan ?? "");
+          setFollowUp(parsed.followUp ?? "");
+          setSelectedRoom(
+            parsed.selectedRoom && isRoomType(parsed.selectedRoom)
+              ? parsed.selectedRoom
+              : null
+          );
+          setScheduledProcedure(parsed.scheduledProcedure ?? null);
+          setPrescriptions(Array.isArray(parsed.prescriptions) ? parsed.prescriptions : []);
+          setSelectedMaterials(
+            Array.isArray(parsed.selectedMaterials) ? parsed.selectedMaterials : []
+          );
+          setDiagnostics(Array.isArray(parsed.diagnostics) ? parsed.diagnostics : []);
+          setError(null);
+          setShowPreview(false);
+          return;
+        } catch {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(storageKey);
+          }
+        }
+      }
+
+      const userRole = String(session?.user?.role || "").toUpperCase();
+
+      if (userRole !== "ADMIN" && userRole !== "DOCTOR") {
+        if (!cancelled) resetDraftFields();
+        return;
+      }
+
+      try {
+        if (!cancelled) setLoadingExistingNote(true);
+
+        const apiPath =
+          userRole === "DOCTOR"
+            ? `/api/doctor/soap-notes?patientId=${patient.id}`
+            : `/api/admin/soap-notes?patientId=${patient.id}`;
+
+        const response = await fetch(apiPath, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const data = await safeJson(response);
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to load saved SOAP note");
+        }
+
+        const latestSoapNote = Array.isArray(data?.soapNotes)
+          ? data.soapNotes[0]
+          : null;
+
+        if (cancelled) return;
+
+        if (latestSoapNote) {
+          hydrateFromSoapNote(latestSoapNote);
+        } else {
+          resetDraftFields();
+        }
+      } catch (err) {
+        console.error("[SOAP-LOAD-ERROR]", err);
+        if (!cancelled) {
+          resetDraftFields();
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingExistingNote(false);
+        }
+      }
+    };
+
+    void loadSoapNote();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, patient?.id, session?.user?.role, status, storageKey]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -366,6 +503,9 @@ const SoapNoteModal = ({
         followUp,
         selectedRoom,
         scheduledProcedure,
+        prescriptions,
+        selectedMaterials,
+        diagnostics,
       })
     );
   }, [
@@ -379,6 +519,9 @@ const SoapNoteModal = ({
     followUp,
     selectedRoom,
     scheduledProcedure,
+    prescriptions,
+    selectedMaterials,
+    diagnostics,
   ]);
 
   if (!open || !patient) return null;
@@ -446,14 +589,6 @@ const SoapNoteModal = ({
           ? "/api/doctor/soap-notes"
           : "/api/admin/soap-notes";
 
-      console.log("[SOAP-SAVE-CONTEXT]", {
-        sessionRole: userRole,
-        apiPath,
-        patientId: patient.id,
-      });
-
-      console.log("[SOAP-SAVE-PAYLOAD]", payload);
-
       const response = await fetch(apiPath, {
         method: "POST",
         headers: {
@@ -462,49 +597,26 @@ const SoapNoteModal = ({
         body: JSON.stringify(payload),
       });
 
-      console.log("[SOAP-SAVE-RESPONSE]", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
-
       if (!response.ok) {
-        const contentType = response.headers.get("content-type") || "";
-        let jsonErrorData: any = null;
-        let errorTextContent = "";
-
-        if (contentType.includes("application/json")) {
-          try {
-            jsonErrorData = await response.json();
-          } catch (parseErr) {
-            console.error("[SOAP-JSON-PARSE-ERROR]", parseErr);
-          }
-        } else {
-          errorTextContent = await response.text();
-          console.log("[SOAP-ERROR-NON-JSON]", errorTextContent.substring(0, 500));
-        }
-
-        console.error("[SOAP-SAVE-ERROR]", {
-          status: response.status,
-          statusText: response.statusText,
-          jsonErrorData,
-          htmlError: !!errorTextContent,
-          errorTextPreview: errorTextContent.substring(0, 200),
-        });
-
-        const errorMessage =
-          jsonErrorData?.error ||
-          (errorTextContent
-            ? `Server Error (${response.status}): ${errorTextContent.substring(0, 100)}...`
-            : `HTTP ${response.status}: ${response.statusText}`);
-
+        const data = await safeJson(response);
+        const errorMessage = data?.error || `HTTP ${response.status}: ${response.statusText}`;
         setError(errorMessage);
-        alert(jsonErrorData?.error || `Failed to save SOAP Note: ${errorMessage}`);
+        alert(`Failed to save SOAP Note: ${errorMessage}`);
         return;
       }
 
       alert("SOAP Note saved successfully!");
-      setShowPreview(true);
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(storageKey);
+        window.dispatchEvent(
+          new CustomEvent("soap-note-saved", {
+            detail: { patientId: patient.id },
+          })
+        );
+      }
+
+      onSaved?.();
       onClose();
     } catch (error: any) {
       console.error("[SOAP-SAVE-CATCH]", error);
@@ -763,36 +875,19 @@ const SoapNoteModal = ({
                     key={idx}
                     className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
                   >
-                    <p className="text-sm font-semibold text-amber-900">{rx.drug}</p>
-                    <p className="text-xs text-amber-700">
-                      {rx.dose} · {rx.frequency} · {rx.duration}
+                    <p className="text-sm font-semibold text-amber-900">
+                      {getPrescriptionTitle(rx)}
                     </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {selectedMaterials.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Educational Materials
-                </p>
-                {selectedMaterials.map((material, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3"
-                  >
-                    {material.thumbnail && (
-                      <img
-                        src={material.thumbnail}
-                        alt={material.title}
-                        className="h-10 w-10 rounded-xl object-cover"
-                      />
+                    {!!getPrescriptionMeta(rx) && (
+                      <p className="text-xs text-amber-700">
+                        {getPrescriptionMeta(rx)}
+                      </p>
                     )}
-                    <div>
-                      <p className="text-sm font-semibold text-blue-900">{material.title}</p>
-                      <p className="text-xs text-blue-700">{material.category}</p>
-                    </div>
+                    {!!rx.instructions?.trim() && (
+                      <p className="mt-1 text-xs text-amber-800">
+                        {rx.instructions}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -844,12 +939,6 @@ const SoapNoteModal = ({
                   </div>
                 </div>
               )}
-
-              {!scheduledProcedure && selectedRoomLabel && (
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                  📍 {selectedRoomLabel}
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -871,6 +960,11 @@ const SoapNoteModal = ({
                   SOAP Note
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">{patient.name}</p>
+                {loadingExistingNote && (
+                  <p className="mt-2 text-xs font-medium text-blue-600">
+                    Loading latest saved SOAP note...
+                  </p>
+                )}
               </div>
 
               <button
@@ -984,16 +1078,14 @@ const SoapNoteModal = ({
                         rows={4}
                       />
 
-                      <ActionChips
-                        options={["Add Prescription", "Add Educational Material"]}
-                        onSelect={(option) => {
-                          if (option === "Add Prescription") {
-                            setOpenPrescription(true);
-                          } else if (option === "Add Educational Material") {
-                            setOpenEducationalMaterial(true);
-                          }
-                        }}
-                      />
+<ActionChips
+  options={["Add Prescription"]}
+  onSelect={(option) => {
+    if (option === "Add Prescription") {
+      setOpenPrescription(true);
+    }
+  }}
+/>
 
                       {prescriptions.length > 0 && (
                         <div className="space-y-3">
@@ -1003,10 +1095,19 @@ const SoapNoteModal = ({
                               className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div>
-                                <p className="font-semibold text-slate-900">{rx.drug}</p>
-                                <p className="text-sm text-slate-600">
-                                  {rx.dose} · {rx.frequency} · {rx.duration}
+                                <p className="font-semibold text-slate-900">
+                                  {getPrescriptionTitle(rx)}
                                 </p>
+                                {!!getPrescriptionMeta(rx) && (
+                                  <p className="text-sm text-slate-600">
+                                    {getPrescriptionMeta(rx)}
+                                  </p>
+                                )}
+                                {!!rx.instructions?.trim() && (
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {rx.instructions}
+                                  </p>
+                                )}
                               </div>
 
                               <div className="flex gap-2">

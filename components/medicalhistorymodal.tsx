@@ -1,4 +1,5 @@
 "use client";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { FieldBlock } from "./UIHelpers";
 
@@ -23,6 +24,18 @@ const MedicalHistoryModal = ({
   patientId?: string;
   onSuccess?: () => void;
 }) => {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+
+  if (!role || !["DOCTOR", "ADMIN"].includes(role)) {
+    return (
+      <div className="fixed inset-0 bg-gray-200/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="bg-red-100 border border-red-400 text-red-800 px-6 py-4 rounded-xl max-w-md">
+          Access denied. Doctor or Admin role required.
+        </div>
+      </div>
+    );
+  }
   const [formData, setFormData] = useState({
     type: "",
     resultDate: "",
@@ -79,18 +92,21 @@ const MedicalHistoryModal = ({
         formDataToSend.append("photos", photo);
       });
 
-      const response = await fetch(
-        `/api/admin/patients/${patientId}/medical-history`,
-        {
-          method: "POST",
-          body: formDataToSend,
-        }
-      );
+      const endpoint = `/api/${role === "DOCTOR" ? "doctor" : "admin"}/patients/${patientId}/medical-history`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        body: formDataToSend,
+      });
+      console.log("POST to", endpoint, "status:", response.status);
 
       const data = await response.json();
 
       if (response.ok) {
         setSuccess("Medical history saved successfully!");
+
+        // Reset file input to allow same file re-upload
+        const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+        if (fileInput) fileInput.value = "";
 
         setFormData({
           type: "",

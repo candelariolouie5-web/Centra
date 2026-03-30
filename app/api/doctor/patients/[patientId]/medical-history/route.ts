@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -6,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 
-// Ensure upload directory exists
 async function ensureUploadDir(dirPath: string) {
   try {
     const { default: fs } = await import("fs");
@@ -16,6 +14,37 @@ async function ensureUploadDir(dirPath: string) {
   } catch (error) {
     console.error("Error creating directory:", error);
   }
+}
+
+async function resolvePatientId(rawPatientId: string) {
+  if (!rawPatientId) return null;
+
+  // 1) Direct Patient ID lookup
+  const directPatient = await prisma.patient.findUnique({
+    where: { id: rawPatientId },
+    select: { id: true },
+  });
+
+  if (directPatient?.id) {
+    return directPatient.id;
+  }
+
+  // 2) Appointment ID -> appointment.patientId -> Patient ID
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: rawPatientId },
+    select: { patientId: true },
+  });
+
+  if (!appointment?.patientId) {
+    return null;
+  }
+
+  const patientFromAppointment = await prisma.patient.findUnique({
+    where: { id: appointment.patientId },
+    select: { id: true },
+  });
+
+  return patientFromAppointment?.id ?? null;
 }
 
 export async function GET(
@@ -28,7 +57,6 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is doctor
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: { role: true },
@@ -45,25 +73,23 @@ export async function GET(
   }
 
   try {
-    // Check if patient exists (role USER)
-    const patient = await prisma.user.findUnique({
-      where: { id: patientId },
-      select: { id: true, role: true },
-    });
+    const resolvedPatientId = await resolvePatientId(patientId);
 
-    if (!patient || patient.role !== "USER") {
+    if (!resolvedPatientId) {
       return NextResponse.json({ error: "Invalid patient" }, { status: 400 });
     }
 
-    // Get medical histories for the patient
     const medicalHistories = await prisma.medicalHistory.findMany({
-      where: { patientId },
+      where: { patientId: resolvedPatientId },
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ medicalHistories });
+    return NextResponse.json({
+      medicalHistories,
+      resolvedPatientId,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("[DOCTOR_MEDICAL_HISTORY_GET]", error);
     return NextResponse.json(
       { error: "Failed to fetch medical histories" },
       { status: 500 }
@@ -81,7 +107,6 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is doctor
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: { role: true },
@@ -98,13 +123,9 @@ export async function POST(
   }
 
   try {
-    // Check if patient exists
-    const patient = await prisma.user.findUnique({
-      where: { id: patientId },
-      select: { id: true, role: true },
-    });
+    const resolvedPatientId = await resolvePatientId(patientId);
 
-    if (!patient || patient.role !== "USER") {
+    if (!resolvedPatientId) {
       return NextResponse.json({ error: "Invalid patient" }, { status: 400 });
     }
 
@@ -123,11 +144,9 @@ export async function POST(
       );
     }
 
-    // Parse date string and create date in local time (noon to avoid timezone issues)
     const [year, month, day] = resultDateStr.split("-").map(Number);
     const resultDate = new Date(year, month - 1, day, 12, 0, 0);
 
-    // Process uploaded images
     const photoUrls: string[] = [];
     const uploadDir = join(process.cwd(), "public", "uploads", "medical-history");
 
@@ -156,10 +175,9 @@ export async function POST(
       }
     }
 
-    // Create medical history record
     const medicalHistory = await prisma.medicalHistory.create({
       data: {
-        patientId,
+        patientId: resolvedPatientId,
         type,
         resultDate,
         lab: lab || null,
@@ -171,9 +189,10 @@ export async function POST(
     return NextResponse.json({
       message: "Medical history created successfully",
       medicalHistory,
+      resolvedPatientId,
     });
   } catch (error) {
-    console.error(error);
+    console.error("[DOCTOR_MEDICAL_HISTORY_POST]", error);
     return NextResponse.json(
       { error: "Failed to create medical history" },
       { status: 500 }
@@ -181,7 +200,6 @@ export async function POST(
   }
 }
 
-// DELETE endpoint
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ patientId: string }> }
@@ -215,10 +233,16 @@ export async function DELETE(
   }
 
   try {
+    const resolvedPatientId = await resolvePatientId(patientId);
+
+    if (!resolvedPatientId) {
+      return NextResponse.json({ error: "Invalid patient" }, { status: 400 });
+    }
+
     const medicalHistory = await prisma.medicalHistory.findFirst({
       where: {
         id: historyId,
-        patientId,
+        patientId: resolvedPatientId,
       },
     });
 
@@ -246,12 +270,16 @@ export async function DELETE(
       where: { id: historyId },
     });
 
-    return NextResponse.json({ message: "Medical history deleted successfully" });
+    return NextResponse.json({
+      message: "Medical history deleted successfully",
+      resolvedPatientId,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("[DOCTOR_MEDICAL_HISTORY_DELETE]", error);
     return NextResponse.json(
       { error: "Failed to delete medical history" },
       { status: 500 }
     );
   }
 }
+

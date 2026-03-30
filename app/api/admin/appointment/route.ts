@@ -50,6 +50,18 @@ export async function GET() {
    ADMIN → APPROVE / REJECT APPOINTMENT (Any assignment)
    Note: Admins can update any appointment status (even DOCTOR ones if needed)
 ================================ */
+function isValidStatusTransition(current: string, next: string): boolean {
+  // Block changes to/from terminal states
+  if (["CANCELLED", "REJECTED"].includes(current)) return false;
+  if (["CANCELLED", "REJECTED"].includes(next)) {
+    // Allow from active states
+    return ["PENDING", "CONFIRMED", "ACCEPTED"].includes(current);
+  }
+  // Allow PENDING -> CONFIRMED (legacy)
+  // Block same status
+  return current !== next && ["PENDING"].includes(current) && next === "CONFIRMED";
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -71,33 +83,28 @@ export async function PATCH(request: NextRequest) {
     const { id, status } = await request.json();
     console.log("PATCH request received:", { id, status });
 
-    if (!id || !["REJECTED", "CANCELLED"].includes(status)) {
-      console.log("Invalid payload:", { id, status });
-      return NextResponse.json({ error: "Appointments are auto-confirmed. Use REJECTED or CANCELLED only." }, { status: 400 });
+    if (!id || !["CONFIRMED", "CANCELLED", "REJECTED", "ACCEPTED"].includes(status)) {
+      return NextResponse.json({ error: "Invalid status. Use CONFIRMED, CANCELLED, REJECTED, or ACCEPTED only." }, { status: 400 });
     }
 
-    // Check if appointment exists (no role filter for updates)
     const existingAppointment = await prisma.appointment.findUnique({
       where: { id },
     });
-    console.log("Existing appointment:", existingAppointment);
 
     if (!existingAppointment) {
-      console.log("Appointment not found for id:", id);
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     }
 
-    if (existingAppointment.status === "CONFIRMED") {
-      console.log("Cannot change confirmed appointment");
-      return NextResponse.json({ error: "Confirmed appointments cannot be manually changed. Use cancel/reject if needed." }, { status: 400 });
+    // Transition validation
+    const isValidTransition = isValidStatusTransition(existingAppointment.status, status);
+    if (!isValidTransition) {
+      return NextResponse.json({ error: `Invalid status transition: ${existingAppointment.status} → ${status}` }, { status: 400 });
     }
 
-    // Update appointment status
     const appointment = await prisma.appointment.update({
       where: { id },
       data: { status },
     });
-    console.log("Updated appointment:", appointment);
 
     return NextResponse.json({ success: true, appointment }, { status: 200 });
   } catch (error) {
