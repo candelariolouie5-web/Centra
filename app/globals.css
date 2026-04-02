@@ -28,5 +28,7 @@
   /* optional: handle multi-page reports */
   .report-page {
     page-break-after: always;
-  }
+  }.diagnostic-overlay-canvas {
+  touch-action: none;
+}
 }

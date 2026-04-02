@@ -673,127 +673,185 @@ export default function HeadTemplateModal({
     P: "#a855f7",
   };
 
+  const syncTempStroke = useCallback((targetTab: TabKey, targetArea: string) => {
+    const strokeCopy = [...currentStroke.current];
+
+    setTempData((prev) => ({
+      ...prev,
+      [targetTab]: {
+        ...prev[targetTab],
+        [targetArea]: {
+          strokes: strokeCopy.length > 0 ? [strokeCopy] : [],
+        },
+      },
+    }));
+  }, []);
+
+  const commitCurrentStroke = useCallback((targetTab: TabKey, targetArea: string) => {
+    const strokeCopy = [...currentStroke.current];
+
+    if (strokeCopy.length > 0) {
+      setData((prev) => ({
+        ...prev,
+        [targetTab]: {
+          ...prev[targetTab],
+          [targetArea]: {
+            strokes: [...(prev[targetTab][targetArea]?.strokes || []), strokeCopy],
+          },
+        },
+      }));
+    }
+
+    setTempData((prev) => ({
+      ...prev,
+      [targetTab]: {
+        ...prev[targetTab],
+        [targetArea]: {
+          strokes: [],
+        },
+      },
+    }));
+
+    currentStroke.current = [];
+    setIsDrawing(false);
+  }, []);
+
   /* ================= 3D DRAW HANDLERS ================= */
   const start3DStroke = () => {
     if (mode !== "draw" || !area) return;
-    setIsDrawing(true);
+
     currentStroke.current = [];
+    setIsDrawing(true);
+    syncTempStroke(tab, area);
   };
 
   const draw3DStroke = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       if (!isDrawing || mode !== "draw" || !area) return;
+
       e.stopPropagation();
+
       const p = e.point;
       const pressure = e.pointerType === "pen" ? e.pressure || 0.5 : 0.5;
-      currentStroke.current.push({ x: p.x, y: p.y, z: p.z, soap, pressure, is3D: true });
 
-      setTempData((prev) => ({
-        ...prev,
-        [tab]: {
-          ...prev[tab],
-          [area]: {
-            strokes: [...(prev[tab][area]?.strokes || []), [...currentStroke.current]],
-          },
-        },
-      }));
+      currentStroke.current.push({ x: p.x, y: p.y, z: p.z, soap, pressure, is3D: true });
+      syncTempStroke(tab, area);
     },
-    [mode, isDrawing, area, soap, tab]
+    [area, isDrawing, mode, soap, syncTempStroke, tab]
   );
 
   const end3DStroke = () => {
-    if (area && currentStroke.current.length > 0) {
-      setData((prev) => ({
-        ...prev,
-        [tab]: {
-          ...prev[tab],
-          [area]: {
-            strokes: [...(prev[tab][area]?.strokes || []), [...currentStroke.current]],
-          },
-        },
-      }));
-      setTempData((prev) => ({
-        ...prev,
-        [tab]: { ...prev[tab], [area]: { strokes: [] } },
-      }));
+    if (!area) {
+      currentStroke.current = [];
+      setIsDrawing(false);
+      return;
     }
-    currentStroke.current = [];
-    setIsDrawing(false);
+
+    commitCurrentStroke(tab, area);
   };
 
   /* ================= 2D DRAW HANDLERS ================= */
+  const getCanvasPoint = (
+    e: React.PointerEvent<HTMLCanvasElement>,
+    canvas: HTMLCanvasElement
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+  };
+
   const start2DStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (mode !== "draw") return;
-    setIsDrawing(true);
-    const canvas = overlayRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    currentStroke.current = [{ x, y, soap, pressure: e.pressure || 0.5, is3D: false }];
 
-    setTempData((prev) => ({
-      ...prev,
-      [tab]: {
-        ...prev[tab],
-        [area || "default"]: {
-          strokes: [...(prev[tab][area || "default"]?.strokes || []), [...currentStroke.current]],
-        },
+    e.preventDefault();
+    e.stopPropagation();
+
+    const canvas = overlayRef.current;
+    if (!canvas) return;
+
+    canvas.setPointerCapture?.(e.pointerId);
+
+    const key = area || "default";
+    const { x, y } = getCanvasPoint(e, canvas);
+
+    currentStroke.current = [
+      {
+        x,
+        y,
+        soap,
+        pressure: e.pressure && e.pressure > 0 ? e.pressure : 0.5,
+        is3D: false,
       },
-    }));
+    ];
+
+    setIsDrawing(true);
+    syncTempStroke(tab, key);
   };
 
   const draw2DStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = overlayRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+    if (!isDrawing || mode !== "draw") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const canvas = overlayRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const last = currentStroke.current[currentStroke.current.length - 1];
-    const newPoint = { x, y, soap, pressure: e.pressure || 0.5, is3D: false };
-    currentStroke.current.push(newPoint);
+    const events =
+      typeof e.nativeEvent.getCoalescedEvents === "function"
+        ? e.nativeEvent.getCoalescedEvents()
+        : [e.nativeEvent];
 
-    if (last) {
-      ctx.strokeStyle = soapColor[soap];
-      ctx.lineWidth = STROKE_WIDTH;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(last.x * canvas.width, last.y * canvas.height);
-      ctx.lineTo(newPoint.x * canvas.width, newPoint.y * canvas.height);
-      ctx.stroke();
+    for (const ev of events) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (ev.clientX - rect.left) / rect.width;
+      const y = (ev.clientY - rect.top) / rect.height;
+
+      const last = currentStroke.current[currentStroke.current.length - 1];
+      const newPoint = {
+        x,
+        y,
+        soap,
+        pressure: ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5,
+        is3D: false as const,
+      };
+
+      currentStroke.current.push(newPoint);
+
+      if (last) {
+        ctx.strokeStyle = soapColor[soap];
+        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(last.x * canvas.width, last.y * canvas.height);
+        ctx.lineTo(newPoint.x * canvas.width, newPoint.y * canvas.height);
+        ctx.stroke();
+      }
     }
 
-    setTempData((prev) => ({
-      ...prev,
-      [tab]: {
-        ...prev[tab],
-        [area || "default"]: {
-          strokes: [...(prev[tab][area || "default"]?.strokes || []), [...currentStroke.current]],
-        },
-      },
-    }));
+    syncTempStroke(tab, area || "default");
   };
 
-  const end2DStroke = () => {
-    if (area && currentStroke.current.length > 0) {
-      setData((prev) => ({
-        ...prev,
-        [tab]: {
-          ...prev[tab],
-          [area || "default"]: {
-            strokes: [...(prev[tab][area || "default"]?.strokes || []), [...currentStroke.current]],
-          },
-        },
-      }));
-      setTempData((prev) => ({
-        ...prev,
-        [tab]: { ...prev[tab], [area || "default"]: { strokes: [] } },
-      }));
+  const end2DStroke = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const canvas = overlayRef.current;
+      if (canvas) {
+        try {
+          canvas.releasePointerCapture?.(e.pointerId);
+        } catch {}
+      }
     }
-    currentStroke.current = [];
-    setIsDrawing(false);
+
+    commitCurrentStroke(tab, area || "default");
   };
 
   /* ================= MERGE CANVASES ================= */
@@ -813,6 +871,22 @@ export default function HeadTemplateModal({
 
     return mergedCanvas.toDataURL('image/png');
   };
+
+  useEffect(() => {
+    if (!isDrawing || mode !== "draw") return;
+
+    const handleWindowPointerEnd = () => {
+      commitCurrentStroke(tab, area || "default");
+    };
+
+    window.addEventListener("pointerup", handleWindowPointerEnd);
+    window.addEventListener("pointercancel", handleWindowPointerEnd);
+
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerEnd);
+      window.removeEventListener("pointercancel", handleWindowPointerEnd);
+    };
+  }, [area, commitCurrentStroke, isDrawing, mode, tab]);
 
   /* ================= EFFECTS ================= */
   useEffect(() => {
@@ -952,22 +1026,8 @@ export default function HeadTemplateModal({
               <div className="flex items-center gap-1 bg-slate-700 rounded-lg p-1">
                 <button
                   onClick={() => {
-                    if (isDrawing && area && currentStroke.current.length > 0) {
-                      setData((prev) => ({
-                        ...prev,
-                        [tab]: {
-                          ...prev[tab],
-                          [area]: {
-                            strokes: [...(prev[tab][area]?.strokes || []), [...currentStroke.current]],
-                          },
-                        },
-                      }));
-                      setTempData((prev) => ({
-                        ...prev,
-                        [tab]: { ...prev[tab], [area]: { strokes: [] } },
-                      }));
-                      currentStroke.current = [];
-                      setIsDrawing(false);
+                    if (isDrawing) {
+                      commitCurrentStroke(tab, area || "default");
                     }
                     setMode("draw");
                   }}
@@ -981,22 +1041,8 @@ export default function HeadTemplateModal({
                 </button>
                 <button
                   onClick={() => {
-                    if (isDrawing && area && currentStroke.current.length > 0) {
-                      setData((prev) => ({
-                        ...prev,
-                        [tab]: {
-                          ...prev[tab],
-                          [area]: {
-                            strokes: [...(prev[tab][area]?.strokes || []), [...currentStroke.current]],
-                          },
-                        },
-                      }));
-                      setTempData((prev) => ({
-                        ...prev,
-                        [tab]: { ...prev[tab], [area]: { strokes: [] } },
-                      }));
-                      currentStroke.current = [];
-                      setIsDrawing(false);
+                    if (isDrawing) {
+                      commitCurrentStroke(tab, area || "default");
                     }
                     setMode("view");
                   }}
@@ -1157,14 +1203,16 @@ export default function HeadTemplateModal({
 
             {/* 2D overlay */}
             {mode === "draw" && (
-              <canvas
-                ref={overlayRef}
-                className="absolute inset-0 w-full h-full pointer-events-auto"
-                onPointerDown={start2DStroke}
-                onPointerMove={draw2DStroke}
-                onPointerUp={end2DStroke}
-                onPointerLeave={end2DStroke}
-              />
+            <canvas
+  ref={overlayRef}
+  className="absolute inset-0 h-full w-full pointer-events-auto touch-none"
+  style={{ touchAction: "none" }}
+  onPointerDown={start2DStroke}
+  onPointerMove={draw2DStroke}
+  onPointerUp={end2DStroke}
+  onPointerCancel={end2DStroke}
+  onPointerLeave={() => {}}
+/>
             )}
 
             {/* Viewport Label */}
