@@ -3,44 +3,102 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export async function GET(request: NextRequest) {
+type ServiceRow = {
+  name: string;
+  value: number;
+};
+
+export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "DOCTOR") {
+
+    if (!session?.user?.id || session.user.role !== "DOCTOR") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Mock data for consultations (replace with real doctor consultations when schema updated)
-    const data = [
-      { name: "ENT Consult", value: 45 },
-      { name: "Follow-up", value: 30 },
-      { name: "Emergency", value: 15 },
-      { name: "Procedure", value: 10 },
-    ];
+    const doctor = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, role: true },
+    });
 
-    // Calculate highest/lowest
-    const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
-    const highest = data.reduce((prev, curr) => (curr.value || 0) > (prev.value || 0) ? curr : prev);
-    const lowest = data.reduce((prev, curr) => (curr.value || 0) < (prev.value || 0) ? curr : prev);
+    if (!doctor || doctor.role !== "DOCTOR") {
+      return NextResponse.json({ error: "Doctor not found" }, { status: 403 });
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
+        status: {
+          in: ["PENDING", "CONFIRMED", "ACCEPTED"],
+        },
+      },
+      select: {
+        serviceType: true,
+      },
+    });
+
+    const serviceMap = new Map<string, number>();
+
+    for (const item of appointments) {
+      const rawName =
+        typeof item.serviceType === "string" && item.serviceType.trim()
+          ? item.serviceType.trim()
+          : "Uncategorized";
+
+      serviceMap.set(rawName, (serviceMap.get(rawName) || 0) + 1);
+    }
+
+    const data: ServiceRow[] = Array.from(serviceMap.entries())
+      .map(([name, value]) => ({
+        name,
+        value,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    if (data.length === 0) {
+      return NextResponse.json(
+        {
+          data: [],
+          highestService: null,
+          lowestService: null,
+        },
+        { status: 200 }
+      );
+    }
+
+    const total = data.reduce((sum, item) => sum + item.value, 0);
+
+    const highest = data.reduce((prev, curr) =>
+      curr.value > prev.value ? curr : prev
+    );
+    const lowest = data.reduce((prev, curr) =>
+      curr.value < prev.value ? curr : prev
+    );
 
     const highestService = {
       name: highest.name,
-      percentage: Math.round((highest.value / total) * 100),
+      percentage: Number(((highest.value / total) * 100).toFixed(1)),
     };
 
     const lowestService = {
       name: lowest.name,
-      percentage: Math.round((lowest.value / total) * 100),
+      percentage: Number(((lowest.value / total) * 100).toFixed(1)),
     };
 
-    return NextResponse.json({ 
-      data, 
-      highestService, 
-      lowestService 
-    }, { status: 200 });
+    return NextResponse.json(
+      {
+        data,
+        highestService,
+        lowestService,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching doctor's consultations:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
-

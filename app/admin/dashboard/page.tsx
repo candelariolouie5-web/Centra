@@ -145,7 +145,9 @@ export default function DashboardPage() {
   }, [appointmentData]);
 
   const totalConsultations = useMemo(() => {
-    return consultationData.reduce((sum, item) => sum + (item.value || 0), 0);
+    return Math.round(
+      consultationData.reduce((sum, item) => sum + (item.value || 0), 0)
+    );
   }, [consultationData]);
 
   const uniquePatientsToday = useMemo(() => {
@@ -529,7 +531,7 @@ export default function DashboardPage() {
                               : "bg-blue-100 text-blue-700"
                           }`}
                         >
-                          {appointment.status}  
+                          {appointment.status}
                         </span>
                       </td>
                     </tr>

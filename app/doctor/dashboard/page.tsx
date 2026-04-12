@@ -91,6 +91,7 @@ export default function DoctorDashboardPage() {
   const [consultationData, setConsultationData] = useState<ConsultationItem[]>(
     []
   );
+
   const [highestService, setHighestService] = useState<ServiceStat | null>(null);
   const [lowestService, setLowestService] = useState<ServiceStat | null>(null);
 
@@ -238,14 +239,12 @@ export default function DoctorDashboardPage() {
                   <Stethoscope className="h-4 w-4" />
                   Centra Clinic Doctor Overview
                 </div>
-
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
                   Welcome back, {session?.user?.name || "Doctor"} 👋
                 </h2>
-
                 <p className="mt-2 max-w-2xl text-sm text-cyan-50/90 md:text-base">
-                  Here is your live overview of booked appointments, patient flow,
-                  and consultation services.
+                  Here is your live overview of booked appointments, patient
+                  flow, and consultation services.
                 </p>
               </div>
 
@@ -294,7 +293,6 @@ export default function DoctorDashboardPage() {
                   Total booked appointments for selected months
                 </p>
               </div>
-
               <div className="rounded-2xl bg-cyan-100 p-3 text-cyan-700">
                 <CalendarDays className="h-5 w-5" />
               </div>
@@ -305,7 +303,7 @@ export default function DoctorDashboardPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
-                  Patients Today
+                  Total Patients Today
                 </p>
                 <p className="mt-3 text-3xl font-bold text-slate-900">
                   {uniquePatientsToday}
@@ -314,7 +312,6 @@ export default function DoctorDashboardPage() {
                   Unique patients scheduled for today
                 </p>
               </div>
-
               <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
                 <Users className="h-5 w-5" />
               </div>
@@ -334,7 +331,6 @@ export default function DoctorDashboardPage() {
                   Total consultation services recorded
                 </p>
               </div>
-
               <div className="rounded-2xl bg-violet-100 p-3 text-violet-700">
                 <ClipboardList className="h-5 w-5" />
               </div>
@@ -342,171 +338,170 @@ export default function DoctorDashboardPage() {
           </div>
         </div>
 
-        {/* CHARTS */}
-        <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-          {/* APPOINTMENT CHART */}
-          <div className="xl:col-span-2 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+        {/* CHART ROW */}
+        {mounted && (
+          <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+            {/* APPOINTMENT CHART */}
+            <div className="xl:col-span-2 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Booked Appointments Report
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Monthly appointment counts based on selected filters
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-500">
+                    Year
+                  </span>
+                  <input
+                    type="number"
+                    value={year}
+                    onChange={(e) =>
+                      setYear(parseInt(e.target.value) || new Date().getFullYear())
+                    }
+                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400"
+                    aria-label="Year"
+                  />
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="mb-5 flex flex-wrap gap-2">
+                  {[
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                  ].map((month, index) => (
+                    <label
+                      key={index}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedMonths.includes(index + 1)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedMonths((prev) =>
+                              prev.includes(index + 1)
+                                ? prev
+                                : [...prev, index + 1]
+                            );
+                          } else {
+                            setSelectedMonths((prev) =>
+                              prev.filter((m) => m !== index + 1)
+                            );
+                          }
+                        }}
+                      />
+                      {month}
+                    </label>
+                  ))}
+                </div>
+
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={appointmentData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="month" stroke="#94a3b8" />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* CONSULTATION PIE */}
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-6 py-5">
                 <h3 className="text-lg font-semibold text-slate-900">
-                  Booked Appointments Report
+                  Consultation Breakdown
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Monthly appointment counts based on selected filters
+                  Service distribution across consultations
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm font-medium text-slate-500">Year</span>
-                <input
-                  type="number"
-                  value={year}
-                  onChange={(e) => {
-                    const nextYear = Number(e.target.value);
-                    if (!Number.isNaN(nextYear)) {
-                      setYear(nextYear);
-                    }
-                  }}
-                  className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400"
-                  aria-label="Year"
-                />
-              </div>
-            </div>
+              <div className="p-6">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={consultationData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                    >
+                      {consultationData.map((_, index) => (
+                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
 
-            <div className="p-6">
-              <div className="mb-5 flex flex-wrap gap-2">
-                {[
-                  "Jan",
-                  "Feb",
-                  "Mar",
-                  "Apr",
-                  "May",
-                  "Jun",
-                  "Jul",
-                  "Aug",
-                  "Sep",
-                  "Oct",
-                  "Nov",
-                  "Dec",
-                ].map((month, index) => (
-                  <label
-                    key={index}
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedMonths.includes(index + 1)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedMonths((prev) =>
-                            prev.includes(index + 1)
-                              ? prev
-                              : [...prev, index + 1]
-                          );
-                        } else {
-                          setSelectedMonths((prev) =>
-                            prev.filter((m) => m !== index + 1)
-                          );
-                        }
-                      }}
-                    />
-                    {month}
-                  </label>
-                ))}
-              </div>
+                    <Legend verticalAlign="bottom" />
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
 
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={appointmentData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="month" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* CONSULTATION PIE */}
-          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Consultation Breakdown
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Service distribution across consultations
-              </p>
-            </div>
-
-            <div className="p-6">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={consultationData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                  >
-                    {consultationData.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-
-                  <Legend verticalAlign="bottom" />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-
-              <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                {highestService && (
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
-                        <TrendingUp className="h-4 w-4" />
+                <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                  {highestService && (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                          <TrendingUp className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
+                            Highest
+                          </p>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {highestService.name}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
-                          Highest
-                        </p>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {highestService.name}
-                        </p>
-                      </div>
+                      <span className="text-sm font-bold text-emerald-600">
+                        {highestService.percentage}%
+                      </span>
                     </div>
+                  )}
 
-                    <span className="text-sm font-bold text-emerald-600">
-                      {highestService.percentage}%
-                    </span>
-                  </div>
-                )}
-
-                {lowestService && (
-                  <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-white px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-rose-100 p-2 text-rose-600">
-                        <Activity className="h-4 w-4" />
+                  {lowestService && (
+                    <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-white px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-rose-100 p-2 text-rose-600">
+                          <Activity className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
+                            Lowest
+                          </p>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {lowestService.name}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
-                          Lowest
-                        </p>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {lowestService.name}
-                        </p>
-                      </div>
+                      <span className="text-sm font-bold text-rose-600">
+                        {lowestService.percentage}%
+                      </span>
                     </div>
-
-                    <span className="text-sm font-bold text-rose-600">
-                      {lowestService.percentage}%
-                    </span>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* TODAY APPOINTMENTS */}
         <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -578,7 +573,9 @@ export default function DoctorDashboardPage() {
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                             appointment.status === "CONFIRMED"
                               ? "bg-emerald-100 text-emerald-700"
-                              : "bg-blue-100 text-blue-700"
+                              : appointment.status === "PENDING"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-700"
                           }`}
                         >
                           {appointment.status}

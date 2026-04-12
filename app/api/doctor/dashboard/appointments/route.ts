@@ -16,13 +16,17 @@ export async function GET(request: NextRequest) {
       url.searchParams.get("year") || new Date().getFullYear().toString(),
       10
     );
+
     const monthsStr = url.searchParams.get("months") || "";
-    const months = monthsStr
-      ? monthsStr
-          .split(",")
-          .map((value) => parseInt(value, 10))
-          .filter((value) => !Number.isNaN(value))
-      : [];
+    const parsedMonths = monthsStr
+      .split(",")
+      .map((value) => parseInt(value, 10))
+      .filter((value) => !Number.isNaN(value) && value >= 1 && value <= 12);
+
+    const selectedMonths =
+      parsedMonths.length > 0
+        ? Array.from(new Set(parsedMonths)).sort((a, b) => a - b)
+        : Array.from({ length: 12 }, (_, index) => index + 1);
 
     const doctor = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -33,36 +37,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Doctor not found" }, { status: 403 });
     }
 
-    const whereClause: any = {
-      assignedToRole: "DOCTOR",
-      assignedToUserId: doctor.id,
-      status: {
-        in: ["PENDING", "CONFIRMED", "ACCEPTED"],
-      },
-    };
-
-    if (months.length > 0) {
-      const validMonths = months.filter((m) => m >= 0 && m <= 11);
-
-      if (validMonths.length > 0) {
-        const ranges = validMonths.map((month) => ({
-          appointmentDate: {
-            gte: new Date(year, month, 1, 0, 0, 0, 0),
-            lt: new Date(year, month + 1, 1, 0, 0, 0, 0),
-          },
-        }));
-
-        whereClause.OR = ranges;
-      }
-    } else {
-      whereClause.appointmentDate = {
-        gte: new Date(year, 0, 1, 0, 0, 0, 0),
-        lt: new Date(year + 1, 0, 1, 0, 0, 0, 0),
-      };
-    }
-
     const appointments = await prisma.appointment.findMany({
-      where: whereClause,
+      where: {
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
+        status: {
+          in: ["PENDING", "CONFIRMED", "ACCEPTED"],
+        },
+        appointmentDate: {
+          gte: new Date(year, 0, 1, 0, 0, 0, 0),
+          lt: new Date(year + 1, 0, 1, 0, 0, 0, 0),
+        },
+      },
       select: {
         appointmentDate: true,
       },
@@ -71,24 +57,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const monthCountMap = new Map<string, number>();
+    const monthCountMap = new Map<number, number>();
 
     for (const appt of appointments) {
-      const monthLabel = new Date(appt.appointmentDate).toLocaleDateString("en-US", {
-        month: "short",
-      });
-
-      monthCountMap.set(monthLabel, (monthCountMap.get(monthLabel) || 0) + 1);
+      const monthNumber = new Date(appt.appointmentDate).getMonth() + 1;
+      monthCountMap.set(monthNumber, (monthCountMap.get(monthNumber) || 0) + 1);
     }
 
-    const data = Array.from(monthCountMap.entries()).map(([month, count]) => ({
-      month,
-      count,
+    const data = selectedMonths.map((monthNumber) => ({
+      month: new Date(year, monthNumber - 1, 1).toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      }),
+      count: monthCountMap.get(monthNumber) || 0,
     }));
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {
     console.error("Error fetching doctor's appointments:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

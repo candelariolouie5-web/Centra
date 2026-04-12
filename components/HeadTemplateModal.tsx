@@ -790,53 +790,54 @@ export default function HeadTemplateModal({
     syncTempStroke(tab, key);
   };
 
-  const draw2DStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || mode !== "draw") return;
+ const draw2DStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  if (!isDrawing || mode !== "draw") return;
 
-    e.preventDefault();
-    e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
 
-    const canvas = overlayRef.current;
-    if (!canvas) return;
+  const canvas = overlayRef.current;
+  if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
-    const events =
-      typeof e.nativeEvent.getCoalescedEvents === "function"
-        ? e.nativeEvent.getCoalescedEvents()
-        : [e.nativeEvent];
+  const events =
+    typeof e.nativeEvent.getCoalescedEvents === "function"
+      ? e.nativeEvent.getCoalescedEvents()
+      : [e.nativeEvent];
 
-    for (const ev of events) {
-      const rect = canvas.getBoundingClientRect();
-      const x = (ev.clientX - rect.left) / rect.width;
-      const y = (ev.clientY - rect.top) / rect.height;
+  const rect = canvas.getBoundingClientRect();
 
-      const last = currentStroke.current[currentStroke.current.length - 1];
-      const newPoint = {
-        x,
-        y,
-        soap,
-        pressure: ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5,
-        is3D: false as const,
-      };
+  for (const ev of events) {
+    const x = (ev.clientX - rect.left) / rect.width;
+    const y = (ev.clientY - rect.top) / rect.height;
 
-      currentStroke.current.push(newPoint);
+    const last = currentStroke.current[currentStroke.current.length - 1];
+    const newPoint = {
+      x,
+      y,
+      soap,
+      pressure: ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5,
+      is3D: false as const,
+    };
 
-      if (last) {
-        ctx.strokeStyle = soapColor[soap];
-        ctx.lineWidth = STROKE_WIDTH;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        ctx.moveTo(last.x * canvas.width, last.y * canvas.height);
-        ctx.lineTo(newPoint.x * canvas.width, newPoint.y * canvas.height);
-        ctx.stroke();
-      }
+    currentStroke.current.push(newPoint);
+
+    if (last) {
+      ctx.strokeStyle = soapColor[soap];
+      ctx.lineWidth = STROKE_WIDTH;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(last.x * rect.width, last.y * rect.height);
+      ctx.lineTo(newPoint.x * rect.width, newPoint.y * rect.height);
+      ctx.stroke();
     }
+  }
 
-    syncTempStroke(tab, area || "default");
-  };
+  syncTempStroke(tab, area || "default");
+};
 
   const end2DStroke = (e?: React.PointerEvent<HTMLCanvasElement>) => {
     if (e) {
@@ -855,70 +856,71 @@ export default function HeadTemplateModal({
   };
 
   /* ================= MERGE CANVASES ================= */
-  const mergeCanvases = () => {
-    const webglCanvas = webglRef.current;
-    const overlayCanvas = overlayRef.current;
-    if (!webglCanvas || !overlayCanvas) return null;
+ const mergeCanvases = () => {
+  const webglCanvas = webglRef.current;
+  const overlayCanvas = overlayRef.current;
+  if (!webglCanvas || !overlayCanvas) return null;
 
-    const mergedCanvas = document.createElement('canvas');
-    mergedCanvas.width = webglCanvas.width;
-    mergedCanvas.height = webglCanvas.height;
-    const ctx = mergedCanvas.getContext('2d');
-    if (!ctx) return null;
+  const mergedCanvas = document.createElement("canvas");
+  mergedCanvas.width = webglCanvas.width;
+  mergedCanvas.height = webglCanvas.height;
+  const ctx = mergedCanvas.getContext("2d");
+  if (!ctx) return null;
 
-    ctx.drawImage(webglCanvas, 0, 0);
-    ctx.drawImage(overlayCanvas, 0, 0);
+  ctx.drawImage(webglCanvas, 0, 0, mergedCanvas.width, mergedCanvas.height);
 
-    return mergedCanvas.toDataURL('image/png');
-  };
+  ctx.drawImage(
+    overlayCanvas,
+    0,
+    0,
+    overlayCanvas.width,
+    overlayCanvas.height,
+    0,
+    0,
+    mergedCanvas.width,
+    mergedCanvas.height
+  );
 
-  useEffect(() => {
-    if (!isDrawing || mode !== "draw") return;
-
-    const handleWindowPointerEnd = () => {
-      commitCurrentStroke(tab, area || "default");
-    };
-
-    window.addEventListener("pointerup", handleWindowPointerEnd);
-    window.addEventListener("pointercancel", handleWindowPointerEnd);
-
-    return () => {
-      window.removeEventListener("pointerup", handleWindowPointerEnd);
-      window.removeEventListener("pointercancel", handleWindowPointerEnd);
-    };
-  }, [area, commitCurrentStroke, isDrawing, mode, tab]);
-
+  return mergedCanvas.toDataURL("image/png");
+};  
   /* ================= EFFECTS ================= */
   useEffect(() => {
-    if (!overlayRef.current) return;
-    const canvas = overlayRef.current;
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  if (!overlayRef.current) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const canvas = overlayRef.current;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
-    const tabData = data[tab];
-    Object.values(tabData).forEach((areaData) => {
-      areaData.strokes.forEach((stroke) => {
-        if (!stroke[0]?.is3D) {
-          ctx.beginPath();
-          for (let i = 0; i < stroke.length; i++) {
-            const p = stroke[i];
-            const x = p.x * canvas.width;
-            const y = p.y * canvas.height;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.strokeStyle = soapColor[stroke[0]?.soap ?? "O"];
-          ctx.lineWidth = STROKE_WIDTH;
-          ctx.lineCap = "round";
-          ctx.stroke();
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const tabData = data[tab];
+  Object.values(tabData).forEach((areaData) => {
+    areaData.strokes.forEach((stroke) => {
+      if (!stroke[0]?.is3D) {
+        ctx.beginPath();
+        for (let i = 0; i < stroke.length; i++) {
+          const p = stroke[i];
+          const x = p.x * rect.width;
+          const y = p.y * rect.height;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
-      });
+        ctx.strokeStyle = soapColor[stroke[0]?.soap ?? "O"];
+        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      }
     });
-  }, [mode, tab, data]);
+  });
+}, [mode, tab, data]);
 
   /* ================= RENDER ================= */
   if (!open) return null;
@@ -1123,7 +1125,7 @@ export default function HeadTemplateModal({
               <directionalLight position={[5, 5, 5]} />
               <OrbitControls
                 ref={orbitRef}
-                enableZoom
+                enableZoom  
                 enablePan={mode === "view"}
                 enableRotate={mode === "view"}
                 minDistance={2}
@@ -1492,4 +1494,4 @@ export default function HeadTemplateModal({
       </div>
     </Modal>
   );
-}
+} 
