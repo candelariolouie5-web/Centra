@@ -12,10 +12,10 @@ export async function GET(_request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { id: true, role: true },
+    select: { id: true, role: true, isActive: true },
   });
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN" || !user.isActive) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -23,6 +23,7 @@ export async function GET(_request: NextRequest) {
     const appointments = await prisma.appointment.findMany({
       where: {
         assignedToRole: "ADMIN",
+        assignedToUserId: user.id,
         status: {
           in: ["PENDING", "CONFIRMED", "ACCEPTED"],
         },
@@ -64,22 +65,24 @@ export async function GET(_request: NextRequest) {
       }
     }
 
-    const transformedPatients = Array.from(latestPerPatient.values()).map((appt) => {
-      const patient = appt.patient!;
-      const latestSoapNote = patient.soapNotes?.[0] ?? null;
+    const transformedPatients = Array.from(latestPerPatient.values()).map(
+      (appt) => {
+        const patient = appt.patient!;
+        const latestSoapNote = patient.soapNotes?.[0] ?? null;
 
-      return {
-        id: patient.id,
-        name: patient.name || appt.fullName || "N/A",
-        email: patient.email || appt.email || null,
-        image: null,
-        createdAt: patient.createdAt.toISOString(),
-        chiefComplaints: latestSoapNote?.chiefComplaint || null,
-        remarks: latestSoapNote?.remarks || null,
-        notes: latestSoapNote?.diagnosis || null,
-        soapNote: latestSoapNote,
-      };
-    });
+        return {
+          id: patient.id,
+          name: patient.name || appt.fullName || "N/A",
+          email: patient.email || appt.email || null,
+          image: null,
+          createdAt: patient.createdAt.toISOString(),
+          chiefComplaints: latestSoapNote?.chiefComplaint || null,
+          remarks: latestSoapNote?.remarks || null,
+          notes: latestSoapNote?.diagnosis || null,
+          soapNote: latestSoapNote,
+        };
+      }
+    );
 
     return NextResponse.json({ patients: transformedPatients });
   } catch (error) {
@@ -97,10 +100,10 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { id: true, role: true },
+    select: { id: true, role: true, isActive: true },
   });
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN" || !user.isActive) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

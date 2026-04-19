@@ -326,9 +326,9 @@ export default function DoctorDashboardPage() {
                 </p>
                 <p className="mt-3 text-3xl font-bold text-slate-900">
                   {totalConsultations}
-                </p>
+                </p>  
                 <p className="mt-2 text-sm text-slate-500">
-                  Total consultation services recorded
+                  Total accepted and confirmed bookings
                 </p>
               </div>
               <div className="rounded-2xl bg-violet-100 p-3 text-violet-700">
@@ -591,4 +591,4 @@ export default function DoctorDashboardPage() {
       </main>
     </div>
   );
-}
+} 

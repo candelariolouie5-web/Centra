@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -118,6 +119,7 @@ model SoapNote {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   imageData         String?
+  diagnosticImages  String[]       @default([])
   prescriptionsList Prescription[]
   patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
 

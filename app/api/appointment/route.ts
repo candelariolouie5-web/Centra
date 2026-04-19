@@ -5,6 +5,7 @@ import {
   prisma,
   BUSY_APPOINTMENT_STATUSES,
   findFirstFreeAssigneeForSlot,
+  getAvailabilityForSlot,
   getDayRange,
 } from "@/lib/prisma";
 
@@ -215,22 +216,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const blockedDate = await prisma.blockedDate.findFirst({
-      where: {
-        startDate: { lte: appointmentDateTime },
-        endDate: { gte: appointmentDateTime },
-      },
-    });
-
-    if (blockedDate) {
-      return NextResponse.json(
-        { error: `Date blocked: ${blockedDate.reason || "Blocked"}` },
-        { status: 400 }
-      );
-    }
-
     const appointment = await prisma.$transaction(
       async (tx) => {
+        const slotInfo = await getAvailabilityForSlot(date, time, tx);
+
+        if (slotInfo.remaining <= 0 || slotInfo.capacity <= 0) {
+          const error = new Error("SLOT_FULL");
+          (error as any).code = "SLOT_FULL";
+          throw error;
+        }
+
         const assignee = await findFirstFreeAssigneeForSlot(date, time, tx);
 
         if (!assignee) {

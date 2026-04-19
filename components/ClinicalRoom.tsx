@@ -283,8 +283,14 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
   };
 
   const handleConfirmSchedule = async () => {
-    if (!patientId || patientId === "temp" || !patientId.match(/^[a-zA-Z0-9_-]+$/)) {
-      alert("Invalid patient ID. Please select a valid patient from the patient list.");
+    if (
+      !patientId ||
+      patientId === "temp" ||
+      !patientId.match(/^[a-zA-Z0-9_-]+$/)
+    ) {
+      alert(
+        "Invalid patient ID. Please select a valid patient from the patient list."
+      );
       return;
     }
 
@@ -293,13 +299,21 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
       return;
     }
 
+    const role = String(session?.user?.role || "").toUpperCase();
+
+    if (role !== "DOCTOR" && role !== "ADMIN") {
+      alert("Unauthorized role.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const apiPayload = {
         patientId,
-        date: selectedSchedule.date,
-        time: selectedSchedule.time,
+        fullName: displayPatientName,
+        appointmentDate: selectedSchedule.date,
+        appointmentTime: selectedSchedule.time,
         serviceType: selectedProcedure.label,
         room: finalRoom.name,
         contactNumber: patientContactNumber || "",
@@ -308,14 +322,17 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
         source: "staff",
       };
 
-      const apiRes = await fetch("/api/appointment", {
+      const bookingApiPath =
+        role === "DOCTOR" ? "/api/doctor/appointment" : "/api/admin/appointment";
+
+      const apiRes = await fetch(bookingApiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiPayload),
       });
 
       if (!apiRes.ok) {
-        const err = await apiRes.json();
+        const err = await apiRes.json().catch(() => ({}));
         throw new Error(err.error || "Booking failed");
       }
 
@@ -513,8 +530,8 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
                         {finalRoom
                           ? finalRoom.name
                           : selectedSchedule
-                            ? "Choose room"
-                            : "Room will show after date and time"}
+                          ? "Choose room"
+                          : "Room will show after date and time"}
                       </p>
                     </div>
                   </div>
@@ -677,6 +694,6 @@ const ClinicalRoom: React.FC<ClinicalRoomProps> = ({
       </div>
     </>
   );
-}; 
+};
 
 export default ClinicalRoom;

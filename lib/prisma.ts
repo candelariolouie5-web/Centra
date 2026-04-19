@@ -59,16 +59,62 @@ function isEligibleActiveStaff(user: any) {
   return true;
 }
 
+async function getBlockedStateForDate(
+  dateInput: string | Date,
+  db: DbClient = prisma
+) {
+  const { start, end } = getDayRange(dateInput);
+
+  const blockedRows = await db.blockedDate.findMany({
+    where: {
+      startDate: { lte: end },
+      endDate: { gte: start },
+    },
+    select: {
+      doctorId: true,
+    },
+  });
+
+  const adminBlocked = blockedRows.some((row: any) => !row.doctorId);
+
+  const blockedDoctorIds = new Set<string>();
+  for (const row of blockedRows) {
+    if (row.doctorId) {
+      blockedDoctorIds.add(row.doctorId);
+    }
+  }
+
+  return {
+    adminBlocked,
+    blockedDoctorIds,
+  };
+}
+
 export async function getEligibleStaffByRole(
   role: StaffAssignmentRole,
-  db: DbClient = prisma
+  db: DbClient = prisma,
+  dateInput?: string | Date
 ) {
   const users = await db.user.findMany({
     where: { role },
     orderBy: [{ createdAt: "asc" }, { name: "asc" }, { email: "asc" }],
   });
 
-  return users.filter(isEligibleActiveStaff);
+  const eligibleUsers = users.filter(isEligibleActiveStaff);
+
+  if (!dateInput) {
+    return eligibleUsers;
+  }
+
+  const blockedState = await getBlockedStateForDate(dateInput, db);
+
+  if (role === "ADMIN") {
+    return blockedState.adminBlocked ? [] : eligibleUsers;
+  }
+
+  return eligibleUsers.filter(
+    (user: any) => !blockedState.blockedDoctorIds.has(user.id)
+  );
 }
 
 export async function getBusyAssignedUserIdsForSlot(
@@ -118,7 +164,7 @@ export async function findFirstFreeAssigneeForSlot(
     db
   );
 
-  const admins = await getEligibleStaffByRole("ADMIN", db);
+  const admins = await getEligibleStaffByRole("ADMIN", db, dateInput);
   const freeAdmin = admins.find(
     (user: any) => !busyAssignedUserIds.has(user.id)
   );
@@ -130,7 +176,7 @@ export async function findFirstFreeAssigneeForSlot(
     };
   }
 
-  const doctors = await getEligibleStaffByRole("DOCTOR", db);
+  const doctors = await getEligibleStaffByRole("DOCTOR", db, dateInput);
   const freeDoctor = doctors.find(
     (user: any) => !busyAssignedUserIds.has(user.id)
   );
@@ -151,8 +197,8 @@ export async function getAvailabilityForSlot(
   db: DbClient = prisma
 ) {
   const [admins, doctors, busyAssignedUserIds] = await Promise.all([
-    getEligibleStaffByRole("ADMIN", db),
-    getEligibleStaffByRole("DOCTOR", db),
+    getEligibleStaffByRole("ADMIN", db, dateInput),
+    getEligibleStaffByRole("DOCTOR", db, dateInput),
     getBusyAssignedUserIdsForSlot(dateInput, time, db),
   ]);
 
@@ -177,20 +223,20 @@ export async function getAvailabilityForSlot(
   };
 }
 
-export async function getActiveDoctorCount() {
-  const doctors = await getEligibleStaffByRole("DOCTOR");
+export async function getActiveDoctorCount(dateInput?: string | Date) {
+  const doctors = await getEligibleStaffByRole("DOCTOR", prisma, dateInput);
   return doctors.length;
 }
 
-export async function getActiveAdminCount() {
-  const admins = await getEligibleStaffByRole("ADMIN");
+export async function getActiveAdminCount(dateInput?: string | Date) {
+  const admins = await getEligibleStaffByRole("ADMIN", prisma, dateInput);
   return admins.length;
 }
 
-export async function getActiveStaffCount() {
+export async function getActiveStaffCount(dateInput?: string | Date) {
   const [admins, doctors] = await Promise.all([
-    getEligibleStaffByRole("ADMIN"),
-    getEligibleStaffByRole("DOCTOR"),
+    getEligibleStaffByRole("ADMIN", prisma, dateInput),
+    getEligibleStaffByRole("DOCTOR", prisma, dateInput),
   ]);
 
   return admins.length + doctors.length;
@@ -221,7 +267,11 @@ export async function getFirstAvailableDoctorId(
     appointmentTime
   );
 
-  const doctors = await getEligibleStaffByRole("DOCTOR");
+  const doctors = await getEligibleStaffByRole(
+    "DOCTOR",
+    prisma,
+    appointmentDate
+  );
   const freeDoctor = doctors.find(
     (user: any) => !busyAssignedUserIds.has(user.id)
   );

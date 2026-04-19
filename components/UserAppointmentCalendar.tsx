@@ -21,13 +21,6 @@ type SlotInfo = {
   reason?: string;
 };
 
-type BlockedDate = {
-  id: string;
-  startDate: string | Date;
-  endDate: string | Date;
-  reason: string | null;
-};
-
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const clinicHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 
@@ -87,21 +80,6 @@ function isPastDay(date: Date) {
   return target < today;
 }
 
-function normalizeDateOnly(value: string | Date) {
-  const d = new Date(value);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-function isDateBlocked(date: Date, blockedDates: BlockedDate[]) {
-  const target = normalizeDateOnly(date);
-
-  return blockedDates.some((blocked) => {
-    const start = normalizeDateOnly(blocked.startDate);
-    const end = normalizeDateOnly(blocked.endDate);
-    return target >= start && target <= end;
-  });
-}
-
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
 }
@@ -131,9 +109,7 @@ export default function UserAppointmentCalendar() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, SlotInfo>>({});
-  const [loadingBlockedDates, setLoadingBlockedDates] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const mountedRef = useRef(true);
@@ -185,35 +161,6 @@ export default function UserAppointmentCalendar() {
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
-  const fetchBlockedDates = useCallback(async () => {
-    try {
-      setLoadingBlockedDates(true);
-
-      const res = await fetch("/api/availability", {
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch blocked dates");
-      }
-
-      const data = await res.json();
-
-      if (!mountedRef.current) return;
-
-      setBlockedDates(Array.isArray(data?.blockedDates) ? data.blockedDates : []);
-    } catch (error) {
-      console.error("Failed to load blocked dates:", error);
-      if (mountedRef.current) {
-        setBlockedDates([]);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setLoadingBlockedDates(false);
-      }
-    }
-  }, []);
 
   const fetchWeekAvailability = useCallback(async () => {
     if (!showCalendarModal) return;
@@ -341,12 +288,6 @@ export default function UserAppointmentCalendar() {
   }, [showCalendarModal, weekDays, weekKey]);
 
   useEffect(() => {
-    if (showCalendarModal) {
-      fetchBlockedDates();
-    }
-  }, [showCalendarModal, fetchBlockedDates]);
-
-  useEffect(() => {
     fetchWeekAvailability();
   }, [fetchWeekAvailability]);
 
@@ -363,17 +304,35 @@ export default function UserAppointmentCalendar() {
     );
   };
 
+  const isDayFullyBlocked = (date: Date) => {
+    if (isSunday(date) || isPastDay(date) || isToday(date)) return false;
+
+    return clinicHours.every((hour) => {
+      const slot = getSlotInfo(date, hour);
+      return slot.capacity <= 0;
+    });
+  };
+
+  const isDayFullyBooked = (date: Date) => {
+    if (isSunday(date) || isPastDay(date) || isToday(date)) return false;
+    if (isDayFullyBlocked(date)) return false;
+
+    return clinicHours.every((hour) => {
+      const slot = getSlotInfo(date, hour);
+      return slot.capacity > 0 && slot.remaining <= 0;
+    });
+  };
+
   const getUnavailableReason = (date: Date, hour: number) => {
-    const blocked = isDateBlocked(date, blockedDates);
     const sunday = isSunday(date);
     const past = isPastDay(date);
     const today = isToday(date);
     const slot = getSlotInfo(date, hour);
 
-    if (blocked) return "Blocked date";
     if (sunday) return "Clinic is closed on Sundays";
     if (past) return "Past dates are unavailable";
     if (today) return "Same-day booking is not allowed";
+    if (slot.capacity <= 0) return slot.reason || "Blocked date";
     if (slot.reason) return slot.reason;
     if (slot.isFull || slot.remaining <= 0) return "Fully booked";
 
@@ -381,13 +340,12 @@ export default function UserAppointmentCalendar() {
   };
 
   const isSlotAvailable = (date: Date, hour: number) => {
-    const blocked = isDateBlocked(date, blockedDates);
     const sunday = isSunday(date);
     const past = isPastDay(date);
     const today = isToday(date);
     const slot = getSlotInfo(date, hour);
 
-    return !blocked && !sunday && !past && !today && slot.remaining > 0 && !slot.isFull;
+    return !sunday && !past && !today && slot.capacity > 0 && slot.remaining > 0 && !slot.isFull;
   };
 
   const handleSelectSlot = (date: Date, hour: number) => {
@@ -459,7 +417,7 @@ export default function UserAppointmentCalendar() {
   };
 
   return (
-    <div className="rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)] overflow-hidden">
+    <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
       <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_26%),linear-gradient(to_right,_#ffffff,_#f8faff)] px-6 py-6 md:px-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -692,7 +650,7 @@ export default function UserAppointmentCalendar() {
                 </div>
               </div>
 
-              {loadingBlockedDates || loadingSlots ? (
+              {loadingSlots ? (
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 py-16 text-center text-slate-500">
                   Loading slots...
                 </div>
@@ -714,20 +672,14 @@ export default function UserAppointmentCalendar() {
                     </div>
 
                     {weekDays.map((day) => {
-                      const blocked = isDateBlocked(day, blockedDates);
                       const sunday = isSunday(day);
                       const past = isPastDay(day);
                       const sameDayBlocked = isToday(day);
-
-                      const fullyBooked =
-                        !blocked &&
-                        !sunday &&
-                        !past &&
-                        !sameDayBlocked &&
-                        clinicHours.every((hour) => !isSlotAvailable(day, hour));
+                      const fullyBlocked = isDayFullyBlocked(day);
+                      const fullyBooked = isDayFullyBooked(day);
 
                       const unavailable =
-                        blocked || sunday || past || sameDayBlocked || fullyBooked;
+                        sunday || past || sameDayBlocked || fullyBlocked || fullyBooked;
 
                       return (
                         <div
@@ -745,7 +697,7 @@ export default function UserAppointmentCalendar() {
                               {days[day.getDay()]} {day.getDate()}
                             </span>
 
-                            {blocked && (
+                            {fullyBlocked && !sunday && !past && !sameDayBlocked && (
                               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] text-red-600">
                                 Blocked
                               </span>
@@ -757,19 +709,19 @@ export default function UserAppointmentCalendar() {
                               </span>
                             )}
 
-                            {sameDayBlocked && !blocked && !sunday && !past && (
+                            {sameDayBlocked && !sunday && !past && (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
                                 No Same-Day
                               </span>
                             )}
 
-                            {fullyBooked && !blocked && !sunday && !sameDayBlocked && (
+                            {fullyBooked && !fullyBlocked && !sunday && !sameDayBlocked && (
                               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] text-orange-600">
                                 Full
                               </span>
                             )}
 
-                            {past && !blocked && !sunday && (
+                            {past && !sunday && (
                               <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600">
                                 Past
                               </span>
@@ -791,7 +743,9 @@ export default function UserAppointmentCalendar() {
                                     ? "border-l-4 border-emerald-400 bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                                     : sameDayBlocked
                                       ? "bg-amber-50 text-amber-700"
-                                      : "bg-transparent text-slate-400"
+                                      : slot.capacity <= 0
+                                        ? "bg-slate-50 text-slate-400"
+                                        : "bg-transparent text-slate-400"
                                 } disabled:cursor-not-allowed`}
                                 title={
                                   available

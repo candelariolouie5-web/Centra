@@ -4,7 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 /* ===============================
-   DOCTOR → VIEW OWN ASSIGNED APPOINTMENTS ONLY
+   DOCTOR → VIEW ONLY OWN DOCTOR-ASSIGNED APPOINTMENTS
 ================================ */
 export async function GET() {
   try {
@@ -16,7 +16,7 @@ export async function GET() {
 
     const doctor = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true, isActive: true },
+      select: { id: true, role: true, isActive: true },
     });
 
     if (!doctor || doctor.role !== "DOCTOR" || !doctor.isActive) {
@@ -28,12 +28,10 @@ export async function GET() {
 
     const appointments = await prisma.appointment.findMany({
       where: {
-        assignedToUserId: session.user.id,
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
       },
-      orderBy: [
-        { appointmentDate: "asc" },
-        { appointmentTime: "asc" },
-      ],
+      orderBy: [{ appointmentDate: "asc" }, { appointmentTime: "asc" }],
     });
 
     return NextResponse.json({ appointments }, { status: 200 });
@@ -54,17 +52,115 @@ export async function GET() {
 }
 
 /* ===============================
-   DOCTOR → CANCEL OWN ASSIGNED APPOINTMENT ONLY
+   DOCTOR → CREATE FOLLOW-UP / APPOINTMENT
+================================ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const doctor = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, role: true, isActive: true },
+    });
+
+    if (!doctor || doctor.role !== "DOCTOR" || !doctor.isActive) {
+      return NextResponse.json(
+        { error: "Forbidden: Active doctor only" },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+
+    const {
+      patientId,
+      fullName,
+      email,
+      age,
+      contactNumber,
+      appointmentDate,
+      appointmentTime,
+      serviceType,
+      room,
+      source,
+    } = body;
+
+    if (!patientId || !appointmentDate || !appointmentTime || !serviceType) {
+      return NextResponse.json(
+        {
+          error:
+            "Missing required fields: patientId, appointmentDate, appointmentTime, serviceType",
+        },
+        { status: 400 }
+      );
+    }
+
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        age: true,
+        phone: true,
+      },
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+    }
+
+    const appointment = await prisma.appointment.create({
+      data: {
+        patient: {
+          connect: { id: patient.id },
+        },
+        fullName: fullName || patient.name || "N/A",
+        email: email || patient.email || null,
+        age: typeof age === "number" ? age : patient.age ?? null,
+        contactNumber: contactNumber || patient.phone || "",
+        appointmentDate: new Date(appointmentDate),
+        appointmentTime,
+        serviceType,
+        status: "CONFIRMED",
+        room: room || null,
+        source: source || "staff",
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
+      },
+    });
+
+    return NextResponse.json({ success: true, appointment }, { status: 201 });
+  } catch (error) {
+    console.error("[DOCTOR APPOINTMENT POST ERROR]", error);
+    return NextResponse.json(
+      {
+        error:
+          process.env.NODE_ENV === "development"
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : "Internal server error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/* ===============================
+   DOCTOR → CANCEL / REJECT ONLY OWN DOCTOR-ASSIGNED APPOINTMENT
 ================================ */
 function isValidStatusTransition(current: string, next: string): boolean {
-  // Block changes to/from terminal states
   if (["CANCELLED", "REJECTED"].includes(current)) return false;
+
   if (["CANCELLED", "REJECTED"].includes(next)) {
-    // Allow from active states
     return ["PENDING", "CONFIRMED", "ACCEPTED"].includes(current);
   }
-  // Allow PENDING -> CONFIRMED (legacy)
-  // Block same status
+
   return current !== next && ["PENDING"].includes(current) && next === "CONFIRMED";
 }
 
@@ -78,7 +174,7 @@ export async function PATCH(request: NextRequest) {
 
     const doctor = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true, isActive: true },
+      select: { id: true, role: true, isActive: true },
     });
 
     if (!doctor || doctor.role !== "DOCTOR" || !doctor.isActive) {
@@ -100,7 +196,8 @@ export async function PATCH(request: NextRequest) {
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
         id,
-        assignedToUserId: session.user.id,
+        assignedToRole: "DOCTOR",
+        assignedToUserId: doctor.id,
       },
     });
 
@@ -111,11 +208,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Transition validation
-    const isValidTransition = isValidStatusTransition(existingAppointment.status, status);
+    const isValidTransition = isValidStatusTransition(
+      existingAppointment.status,
+      status
+    );
+
     if (!isValidTransition) {
       return NextResponse.json(
-        { error: `Invalid status transition: ${existingAppointment.status} → ${status}` },
+        {
+          error: `Invalid status transition: ${existingAppointment.status} → ${status}`,
+        },
         { status: 400 }
       );
     }

@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 
@@ -22,6 +23,7 @@ type SoapNoteRequestBody = {
   plan?: string | null;
   followUp?: string | null;
   imageData?: string | null;
+  diagnosticImages?: string[] | null;
   prescriptions?: PrescriptionInput[];
 };
 
@@ -33,6 +35,14 @@ function normalizeText(value: unknown) {
 function normalizeNullableText(value: unknown) {
   const normalized = normalizeText(value);
   return normalized || null;
+}
+
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [] as string[];
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
 }
 
 function normalizePrescription(rx: PrescriptionInput) {
@@ -82,6 +92,9 @@ export async function POST(request: NextRequest) {
     console.log("[SOAP-BODY]", {
       patientId: requestBody?.patientId,
       hasPrescriptions: !!requestBody?.prescriptions?.length,
+      diagnosticImagesCount: Array.isArray(requestBody?.diagnosticImages)
+        ? requestBody!.diagnosticImages!.length
+        : 0,
       fields: Object.keys(requestBody || {}).filter(
         (key) => key !== "prescriptions"
       ),
@@ -121,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rawPrescriptions = Array.isArray(requestBody?.prescriptions)
-      ? requestBody!.prescriptions!
+      ? requestBody.prescriptions
       : [];
 
     const normalizedPrescriptions = rawPrescriptions
@@ -147,6 +160,18 @@ export async function POST(request: NextRequest) {
       validMedicationIds = new Set(medications.map((med) => med.id));
     }
 
+    const normalizedDiagnosticImages = normalizeStringArray(
+      requestBody?.diagnosticImages
+    );
+    const fallbackSingleImage = normalizeNullableText(requestBody?.imageData);
+
+    const finalDiagnosticImages =
+      normalizedDiagnosticImages.length > 0
+        ? normalizedDiagnosticImages
+        : fallbackSingleImage
+          ? [fallbackSingleImage]
+          : [];
+
     const soapNotePayload = {
       chiefComplaint: normalizeNullableText(requestBody?.chiefComplaint),
       historyOfIllness: normalizeNullableText(requestBody?.historyOfIllness),
@@ -154,7 +179,8 @@ export async function POST(request: NextRequest) {
       diagnosis: normalizeNullableText(requestBody?.diagnosis),
       plan: normalizeNullableText(requestBody?.plan),
       followUp: normalizeNullableText(requestBody?.followUp),
-      imageData: normalizeNullableText(requestBody?.imageData),
+      imageData: finalDiagnosticImages[0] ?? null,
+      diagnosticImages: finalDiagnosticImages,
       prescriptions: normalizedPrescriptions,
     };
 
@@ -231,7 +257,10 @@ export async function POST(request: NextRequest) {
         "Database constraint violation - data already exists or is invalid";
     } else if (typeof error?.code === "string" && error.code.startsWith("P20")) {
       errorMessage = `Database error: ${error.message}`;
-    } else if (typeof error?.message === "string" && error.message.includes("prisma")) {
+    } else if (
+      typeof error?.message === "string" &&
+      error.message.includes("prisma")
+    ) {
       errorMessage = "Database operation failed";
     }
 
@@ -284,6 +313,12 @@ export async function GET(request: NextRequest) {
 
     const normalizedSoapNotes = soapNotes.map((note) => ({
       ...note,
+      diagnosticImages:
+        Array.isArray(note.diagnosticImages) && note.diagnosticImages.length > 0
+          ? note.diagnosticImages
+          : note.imageData
+            ? [note.imageData]
+            : [],
       prescriptions: note.prescriptionsList.map((rx) => ({
         id: rx.id,
         medicationId: rx.medicationId,

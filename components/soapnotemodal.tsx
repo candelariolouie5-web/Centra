@@ -274,6 +274,18 @@ function getPrescriptionMeta(rx: Prescription) {
   return [rx.quantity, rx.dosage].filter(Boolean).join(" · ");
 }
 
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [] as string[];
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+}
+
+function mapDiagnosticImagesToState(images: string[]) {
+  return images.map((imageData) => ({ imageData, strokes: {} }));
+}
+
 async function safeJson(res: Response) {
   try {
     return await res.json();
@@ -319,6 +331,7 @@ const SoapNoteModal = ({
   const [followUp, setFollowUp] = useState("");
 
   const [showPreview, setShowPreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const storageKey = useMemo(
     () => `soap-note:${patient?.id ?? "temp"}`,
@@ -339,6 +352,7 @@ const SoapNoteModal = ({
     setDiagnostics([]);
     setError(null);
     setShowPreview(false);
+    setPreviewImage(null);
   };
 
   const hydrateFromSoapNote = (note: any) => {
@@ -363,6 +377,14 @@ const SoapNoteModal = ({
       }))
       .filter((rx) => rx.generic.trim().length > 0);
 
+    const savedDiagnosticImages = normalizeStringArray(note?.diagnosticImages);
+    const fallbackImage =
+      typeof note?.imageData === "string" && note.imageData.trim()
+        ? [note.imageData.trim()]
+        : [];
+    const finalDiagnosticImages =
+      savedDiagnosticImages.length > 0 ? savedDiagnosticImages : fallbackImage;
+
     setChiefComplaint(typeof note?.chiefComplaint === "string" ? note.chiefComplaint : "");
     setHistoryOfPresentIllness(
       typeof note?.historyOfIllness === "string" ? note.historyOfIllness : ""
@@ -375,13 +397,10 @@ const SoapNoteModal = ({
     setSelectedMaterials([]);
     setSelectedRoom(null);
     setScheduledProcedure(null);
-    setDiagnostics(
-      typeof note?.imageData === "string" && note.imageData.trim()
-        ? [{ imageData: note.imageData, strokes: {} }]
-        : []
-    );
+    setDiagnostics(mapDiagnosticImagesToState(finalDiagnosticImages));
     setError(null);
     setShowPreview(false);
+    setPreviewImage(null);
   };
 
   const clearScheduledProcedure = () => {
@@ -425,6 +444,7 @@ const SoapNoteModal = ({
           setDiagnostics(Array.isArray(parsed.diagnostics) ? parsed.diagnostics : []);
           setError(null);
           setShowPreview(false);
+          setPreviewImage(null);
           return;
         } catch {
           if (typeof window !== "undefined") {
@@ -563,6 +583,12 @@ const SoapNoteModal = ({
     setError(null);
 
     try {
+      const diagnosticImages = diagnostics
+        .map((item) =>
+          typeof item?.imageData === "string" ? item.imageData.trim() : ""
+        )
+        .filter((item) => item.length > 0);
+
       const payload = {
         patientId: patient.id,
         chiefComplaint,
@@ -571,7 +597,8 @@ const SoapNoteModal = ({
         diagnosis,
         plan,
         followUp,
-        imageData: diagnostics[0]?.imageData || null,
+        imageData: diagnosticImages[0] || null,
+        diagnosticImages,
         prescriptions,
       };
 
@@ -627,6 +654,10 @@ const SoapNoteModal = ({
 
   const handleShowPreview = () => {
     setShowPreview(true);
+  };
+
+  const handleCloseImagePreview = () => {
+    setPreviewImage(null);
   };
 
   const handleExportPDF = async () => {
@@ -839,16 +870,21 @@ const SoapNoteModal = ({
           {diagnostics.length > 0 && (
             <div className="mt-4 space-y-4">
               {diagnostics.map((d, i) => (
-                <div
+                <button
                   key={i}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                  type="button"
+                  onClick={() => setPreviewImage(d.imageData)}
+                  className="block w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left transition hover:border-cyan-300 hover:shadow-sm"
                 >
                   <img
                     src={d.imageData}
-                    alt="Diagnostic"
+                    alt={`Diagnostic ${i + 1}`}
                     className="max-h-[420px] w-full object-contain"
                   />
-                </div>
+                  <div className="border-t border-slate-200 px-4 py-2 text-xs font-medium text-slate-500">
+                    Click to preview
+                  </div>
+                </button>
               ))}
             </div>
           )}
@@ -1047,16 +1083,21 @@ const SoapNoteModal = ({
                       {diagnostics.length > 0 && (
                         <div className="grid gap-3 sm:grid-cols-2">
                           {diagnostics.map((d, i) => (
-                            <div
+                            <button
                               key={i}
-                              className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2"
+                              type="button"
+                              onClick={() => setPreviewImage(d.imageData)}
+                              className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2 text-left transition hover:border-cyan-300 hover:shadow-sm"
                             >
                               <img
                                 src={d.imageData}
-                                alt="Diagnostic"
+                                alt={`Diagnostic ${i + 1}`}
                                 className="h-56 w-full rounded-xl object-contain"
                               />
-                            </div>
+                              <p className="mt-2 text-xs font-medium text-slate-500">
+                                Click to preview
+                              </p>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -1078,14 +1119,14 @@ const SoapNoteModal = ({
                         rows={4}
                       />
 
-<ActionChips
-  options={["Add Prescription"]}
-  onSelect={(option) => {
-    if (option === "Add Prescription") {
-      setOpenPrescription(true);
-    }
-  }}
-/>
+                      <ActionChips
+                        options={["Add Prescription"]}
+                        onSelect={(option) => {
+                          if (option === "Add Prescription") {
+                            setOpenPrescription(true);
+                          }
+                        }}
+                      />
 
                       {prescriptions.length > 0 && (
                         <div className="space-y-3">
@@ -1285,6 +1326,34 @@ const SoapNoteModal = ({
           </div>
         </div>
       </div>
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+          onClick={handleCloseImagePreview}
+        >
+          <div
+            className="relative max-h-[90vh] w-full max-w-5xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={handleCloseImagePreview}
+              className="absolute right-3 top-3 z-10 rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-slate-700 shadow hover:bg-white"
+            >
+              Close
+            </button>
+
+            <div className="overflow-hidden rounded-3xl bg-white p-3 shadow-2xl">
+              <img
+                src={previewImage}
+                alt="Diagnostic preview"
+                className="max-h-[82vh] w-full rounded-2xl object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <PrescriptionModal
         open={openPrescription}

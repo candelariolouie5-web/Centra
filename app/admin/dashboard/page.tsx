@@ -12,6 +12,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { Cell } from "recharts";
 
 /* -------------------- RECHARTS -------------------- */
 const XAxis = dynamic(() => import("recharts").then((mod) => mod.XAxis), {
@@ -46,8 +47,6 @@ const BarChart = dynamic(() => import("recharts").then((mod) => mod.BarChart), {
 const Bar = dynamic(() => import("recharts").then((mod) => mod.Bar), {
   ssr: false,
 });
-
-import { Cell } from "recharts";
 
 type AppointmentBarItem = {
   month: string;
@@ -93,6 +92,7 @@ export default function DashboardPage() {
 
   const [highestService, setHighestService] = useState<ServiceStat | null>(null);
   const [lowestService, setLowestService] = useState<ServiceStat | null>(null);
+  const [totalConsultations, setTotalConsultations] = useState(0);
 
   useEffect(() => setMounted(true), []);
 
@@ -122,6 +122,7 @@ export default function DashboardPage() {
       setConsultationData(result.data || []);
       setHighestService(result.highestService || null);
       setLowestService(result.lowestService || null);
+      setTotalConsultations(result.totalBookings || 0);
     }
   };
 
@@ -143,12 +144,6 @@ export default function DashboardPage() {
   const totalBookedAppointments = useMemo(() => {
     return appointmentData.reduce((sum, item) => sum + (item.count || 0), 0);
   }, [appointmentData]);
-
-  const totalConsultations = useMemo(() => {
-    return Math.round(
-      consultationData.reduce((sum, item) => sum + (item.value || 0), 0)
-    );
-  }, [consultationData]);
 
   const uniquePatientsToday = useMemo(() => {
     const patients = new Set(todayAppointments.map((item) => item.fullName));
@@ -288,7 +283,7 @@ export default function DashboardPage() {
                   {totalConsultations}
                 </p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Total consultation services recorded
+                  Total accepted and confirmed bookings
                 </p>
               </div>
               <div className="rounded-2xl bg-violet-100 p-3 text-violet-700">
@@ -318,7 +313,9 @@ export default function DashboardPage() {
                   <input
                     type="number"
                     value={year}
-                    onChange={(e) => setYear(parseInt(e.target.value))}
+                    onChange={(e) =>
+                      setYear(parseInt(e.target.value) || new Date().getFullYear())
+                    }
                     className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400"
                     aria-label="Year"
                   />
@@ -350,10 +347,14 @@ export default function DashboardPage() {
                         checked={selectedMonths.includes(index + 1)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedMonths([...selectedMonths, index + 1]);
+                            setSelectedMonths((prev) =>
+                              prev.includes(index + 1)
+                                ? prev
+                                : [...prev, index + 1]
+                            );
                           } else {
-                            setSelectedMonths(
-                              selectedMonths.filter((m) => m !== index + 1)
+                            setSelectedMonths((prev) =>
+                              prev.filter((m) => m !== index + 1)
                             );
                           }
                         }}
@@ -397,7 +398,7 @@ export default function DashboardPage() {
                       innerRadius={60}
                       outerRadius={90}
                     >
-                      {consultationData.map((entry, index) => (
+                      {consultationData.map((_, index) => (
                         <Cell
                           key={index}
                           fill={COLORS[index % COLORS.length]}

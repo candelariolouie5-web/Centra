@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { prisma, getAvailabilityForSlot } from "@/lib/prisma";
+import { getAvailabilityForSlot } from "@/lib/prisma";
 
 /* ===============================
    HELPERS
@@ -14,16 +14,20 @@ function getLocalDateString() {
   return `${year}-${month}-${day}`;
 }
 
-/* ===============================
-   SHARED → GET SLOT AVAILABILITY
-   Exact account capacity:
-   - 1 free ADMIN account = 1 slot
-   - 1 free DOCTOR account = 1 slot
-   - same exact date+time cannot exceed exact active eligible accounts
+const TIME_SLOTS = [
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+];
 
-   RULES:
-   - public user booking: same-day NOT allowed
-   - admin/doctor staff scheduling: same-day allowed
+/* ===============================
+   SHARED → GET SLOT / DAY AVAILABILITY
 ================================ */
 export async function GET(request: NextRequest) {
   try {
@@ -31,16 +35,18 @@ export async function GET(request: NextRequest) {
     const dateStr = searchParams.get("date");
     const time = searchParams.get("time");
     const source = searchParams.get("source");
-    const specificSlot = Boolean(dateStr && time);
 
     const session = await getServerSession(authOptions);
     const isStaffSession =
       session?.user?.role === "ADMIN" || session?.user?.role === "DOCTOR";
     const isStaffRequest = source === "staff" || isStaffSession;
 
-    if (specificSlot) {
-      const today = getLocalDateString();
+    const today = getLocalDateString();
 
+    /* ===============================
+       DATE + TIME → EXACT SLOT
+    ============================== */
+    if (dateStr && time) {
       if (!isStaffRequest && dateStr === today) {
         return NextResponse.json(
           {
@@ -59,7 +65,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const slotInfo = await getAvailabilityForSlot(dateStr as string, time as string);
+      const slotInfo = await getAvailabilityForSlot(dateStr, time);
 
       return NextResponse.json(
         {
@@ -77,22 +83,69 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const blockedDates = await prisma.blockedDate.findMany({
-      select: {
-        id: true,
-        startDate: true,
-        endDate: true,
-        reason: true,
-      },
-      orderBy: {
-        startDate: "asc",
-      },
-    });
+    /* ===============================
+       DATE ONLY → WHOLE DAY SUMMARY
+    ============================== */
+    if (dateStr) {
+      if (!isStaffRequest && dateStr === today) {
+        const slots = TIME_SLOTS.map((slot) => ({
+          time: slot,
+          capacity: 0,
+          booked: 0,
+          occupied: 0,
+          remaining: 0,
+          isFull: true,
+          reason: "Same-day booking is not allowed",
+        }));
 
+        return NextResponse.json(
+          {
+            date: dateStr,
+            slots,
+            dayFullyBlocked: true,
+            dayHasAnyAvailableSlot: false,
+            reason: "Same-day booking is not allowed",
+          },
+          { status: 200 }
+        );
+      }
+
+      const slots = await Promise.all(
+        TIME_SLOTS.map(async (slot) => {
+          const slotInfo = await getAvailabilityForSlot(dateStr, slot);
+
+          return {
+            time: slot,
+            capacity: slotInfo.capacity,
+            booked: slotInfo.occupied,
+            occupied: slotInfo.occupied,
+            remaining: slotInfo.remaining,
+            isFull: slotInfo.isFull,
+          };
+        })
+      );
+
+      const dayFullyBlocked = slots.every((slot) => slot.capacity <= 0);
+      const dayHasAnyAvailableSlot = slots.some((slot) => slot.remaining > 0);
+
+      return NextResponse.json(
+        {
+          date: dateStr,
+          slots,
+          dayFullyBlocked,
+          dayHasAnyAvailableSlot,
+        },
+        { status: 200 }
+      );
+    }
+
+    /* ===============================
+       NO DATE → DO NOT RETURN RAW BLOCKED DATES
+    ============================== */
     return NextResponse.json(
       {
-        blockedDates,
-        note: "Use ?date=YYYY-MM-DD&time=HH:MM for exact slot availability.",
+        blockedDates: [],
+        note: "Use ?date=YYYY-MM-DD for day availability or ?date=YYYY-MM-DD&time=HH:MM for exact slot availability.",
       },
       { status: 200 }
     );
