@@ -9,6 +9,7 @@ import {
   Download,
   Settings,
   LogOut,
+  BarChart3,
 } from "lucide-react";
 
 const menuItems = [
@@ -36,6 +37,11 @@ const menuItems = [
     label: "Report",
     href: "/admin/report",
     icon: Download,
+  },
+  {
+    label: "Analytics",
+    href: "/admin/analytics",
+    icon: BarChart3,
   },
 ];
 
