@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log("📝 Full request body:", body);
 
     const isStaffSession =
       session.user.role === "ADMIN" || session.user.role === "DOCTOR";
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitizedContactNumber = normalizePhone(contactNumber);
+    console.log("📱 Sanitized contact number:", sanitizedContactNumber);
 
     let finalPatientId: string;
     let finalUserId: string | null = null;
@@ -104,6 +106,15 @@ export async function POST(request: NextRequest) {
       const incomingPhone = sanitizedContactNumber || undefined;
       const mergedPhone = incomingPhone || patientPhone;
 
+      // 🔥 FIX: Update the patient's phone if a new one is provided
+      if (incomingPhone && incomingPhone !== patient.phone) {
+        await prisma.patient.update({
+          where: { id: patient.id },
+          data: { phone: incomingPhone },
+        });
+        console.log("📝 Updated patient phone from:", patient.phone, "to:", incomingPhone);
+      }
+
       finalPatientId = patient.id;
       finalUserId = null;
       finalFullName = name || patient.name || "Patient";
@@ -111,6 +122,7 @@ export async function POST(request: NextRequest) {
       finalAge = age ? parseInt(String(age), 10) : patient.age ?? undefined;
       finalContactNumber = mergedPhone;
     } else {
+      // No patientId provided - create or find patient
       if (!name || !sanitizedContactNumber) {
         return NextResponse.json(
           { error: "name, contactNumber required for self-booking" },
@@ -127,44 +139,57 @@ export async function POST(request: NextRequest) {
 
       const safeEmail = session.user.email || bodyEmail || "";
 
+      // 🔥 FIX: Better patient lookup - check by email AND phone
       let patient = await prisma.patient.findFirst({
         where: {
           OR: [
             {
-              name,
+              email: safeEmail,
+            },
+            {
               phone: sanitizedContactNumber,
             },
-            ...(safeEmail
-              ? [
-                  {
-                    name,
-                    email: safeEmail,
-                  },
-                ]
-              : []),
+            {
+              name: name,
+            },
           ],
         },
       });
 
       if (!patient) {
+        // Create new patient with phone number
         patient = await prisma.patient.create({
           data: {
-            name,
+            name: name,
             email: safeEmail || undefined,
             age: age ? parseInt(String(age), 10) : undefined,
-            phone: sanitizedContactNumber,
+            phone: sanitizedContactNumber, // 🔥 SAVE PHONE NUMBER
           },
         });
+        console.log("📝 New patient created with phone:", sanitizedContactNumber);
       } else {
-        patient = await prisma.patient.update({
-          where: { id: patient.id },
-          data: {
-            name,
-            email: safeEmail || patient.email || undefined,
-            age: age ? parseInt(String(age), 10) : patient.age ?? undefined,
-            phone: sanitizedContactNumber,
-          },
-        });
+        // 🔥 FIX: Update existing patient with phone number if missing
+        const updateData: any = {};
+        if (patient.phone !== sanitizedContactNumber) {
+          updateData.phone = sanitizedContactNumber;
+        }
+        if (patient.name !== name) {
+          updateData.name = name;
+        }
+        if (patient.age !== (age ? parseInt(String(age), 10) : undefined)) {
+          updateData.age = age ? parseInt(String(age), 10) : undefined;
+        }
+        if (!patient.email && safeEmail) {
+          updateData.email = safeEmail;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          patient = await prisma.patient.update({
+            where: { id: patient.id },
+            data: updateData,
+          });
+          console.log("📝 Patient updated with phone:", sanitizedContactNumber);
+        }
       }
 
       finalPatientId = patient.id;
@@ -277,15 +302,8 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        console.log("Appointment assignment debug:", {
-          date,
-          time,
-          assignedToRole: createdAppointment.assignedToRole,
-          assignedToUserId: createdAppointment.assignedToUserId,
-          patientId: createdAppointment.patientId,
-          userId: createdAppointment.userId,
-          source: createdAppointment.source,
-        });
+        console.log("✅ Appointment created with ID:", createdAppointment.id);
+        console.log("📱 Contact number saved to appointment:", createdAppointment.contactNumber);
 
         return createdAppointment;
       },
@@ -293,6 +311,79 @@ export async function POST(request: NextRequest) {
         isolationLevel: "Serializable",
       }
     );
+
+    // ---------- SEND SMS CONFIRMATION ----------
+    console.log("=" .repeat(50));
+    console.log("📨 STARTING SMS SEND PROCESS");
+    console.log("=" .repeat(50));
+
+    try {
+      // Check if we have a contact number
+      if (!appointment.contactNumber) {
+        console.log("❌ NO CONTACT NUMBER - Skipping SMS");
+        console.log("Appointment data:", {
+          id: appointment.id,
+          fullName: appointment.fullName,
+          contactNumber: appointment.contactNumber,
+        });
+      } else {
+        console.log(`📱 Phone number found: ${appointment.contactNumber}`);
+        console.log(`📱 Phone number length: ${appointment.contactNumber.length}`);
+        
+        // Check if phone number is valid PH format
+        if (!isValidPHMobile(appointment.contactNumber)) {
+          console.log(`❌ Invalid PH mobile format: ${appointment.contactNumber}`);
+          console.log("Format should be: 09XXXXXXXXX (11 digits)");
+        } else {
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+          console.log(`📡 Base URL: ${baseUrl}`);
+          
+          const formattedDate = new Date(appointment.appointmentDate).toLocaleDateString('en-PH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          console.log(`📅 Formatted date: ${formattedDate}`);
+
+          const smsPayload = {
+            phone_number: appointment.contactNumber,
+            templateId: "BOOKING_CONFIRMATION",
+            variables: {
+              name: appointment.fullName,
+              service: appointment.serviceType,
+              date: formattedDate,
+              time: appointment.appointmentTime,
+            },
+          };
+          console.log("📤 SMS Payload:", JSON.stringify(smsPayload, null, 2));
+
+          console.log(`📤 Sending request to: ${baseUrl}/api/sms/send`);
+          
+          const smsResponse = await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(smsPayload),
+          });
+
+          const smsData = await smsResponse.json();
+          console.log("📨 SMS API Response Status:", smsResponse.status);
+          console.log("📨 SMS API Response Body:", JSON.stringify(smsData, null, 2));
+
+          if (!smsResponse.ok) {
+            console.error("❌ SMS API returned error:", smsData);
+          } else {
+            console.log("✅ SMS sent successfully!");
+          }
+        }
+      }
+    } catch (smsError) {
+      console.error("❌ Failed to send SMS confirmation:", smsError);
+      // Do not block the appointment creation if SMS fails
+    }
+
+    console.log("=" .repeat(50));
+    console.log("📨 SMS SEND PROCESS COMPLETE");
+    console.log("=" .repeat(50));
 
     return NextResponse.json(
       {

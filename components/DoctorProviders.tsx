@@ -1,13 +1,13 @@
-"use client";
+  "use client";
 
-import { SessionProvider } from "next-auth/react";
+  import { SessionProvider } from "next-auth/react";
 
-export default function DoctorProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <SessionProvider basePath="/api/auth">
-      {children}
-    </SessionProvider>
-  );
+  export default function DoctorProviders({ children }: { children: React.ReactNode }) {
+    return (
+      <SessionProvider basePath="/api/auth">
+        {children}
+      </SessionProvider>
+    );
 
-}
+  }
 

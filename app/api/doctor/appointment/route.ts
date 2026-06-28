@@ -30,6 +30,9 @@ export async function GET() {
       where: {
         assignedToRole: "DOCTOR",
         assignedToUserId: doctor.id,
+        secretaryStatus: {
+          notIn: ["COMPLETED", "CANCELLED", "NO_SHOW"],
+        },
       },
       orderBy: [{ appointmentDate: "asc" }, { appointmentTime: "asc" }],
     });
@@ -131,8 +134,30 @@ export async function POST(request: NextRequest) {
         source: source || "staff",
         assignedToRole: "DOCTOR",
         assignedToUserId: doctor.id,
+        secretaryStatus: "PENDING",
       },
     });
+
+    // ---------- Send SMS confirmation ----------
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const formattedDate = new Date(appointment.appointmentDate).toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      await fetch(`${baseUrl}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: appointment.contactNumber,
+          message: `Hi ${appointment.fullName}, your ${appointment.serviceType} appointment at Centra Clinic is confirmed for ${formattedDate} at ${appointment.appointmentTime}. Please arrive 10 minutes early. Thank you!`,
+        }),
+      });
+    } catch (smsError) {
+      console.error("Failed to send SMS confirmation:", smsError);
+    }
 
     return NextResponse.json({ success: true, appointment }, { status: 201 });
   } catch (error) {
@@ -161,6 +186,10 @@ function isValidStatusTransition(current: string, next: string): boolean {
     return ["PENDING", "CONFIRMED", "ACCEPTED"].includes(current);
   }
 
+  if (next === "COMPLETED") {
+    return ["CONFIRMED", "ACCEPTED"].includes(current);
+  }
+
   return current !== next && ["PENDING"].includes(current) && next === "CONFIRMED";
 }
 
@@ -186,7 +215,10 @@ export async function PATCH(request: NextRequest) {
 
     const { id, status } = await request.json();
 
-    if (!id || !["CANCELLED", "REJECTED"].includes(status)) {
+    if (
+      !id ||
+      !["CANCELLED", "REJECTED", "COMPLETED"].includes(status)
+    ) {
       return NextResponse.json(
         { error: "Valid ID and status='CANCELLED' or 'REJECTED' required" },
         { status: 400 }

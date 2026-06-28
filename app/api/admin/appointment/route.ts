@@ -30,6 +30,9 @@ export async function GET() {
       where: {
         assignedToRole: "ADMIN",
         assignedToUserId: admin.id,
+        secretaryStatus: {
+          notIn: ["COMPLETED", "CANCELLED", "NO_SHOW"],
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -131,8 +134,30 @@ export async function POST(request: NextRequest) {
         source: source || "staff",
         assignedToRole: "ADMIN",
         assignedToUserId: admin.id,
+        secretaryStatus: "PENDING",
       },
     });
+
+    // ---------- Send SMS confirmation ----------
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const formattedDate = new Date(appointment.appointmentDate).toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      await fetch(`${baseUrl}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: appointment.contactNumber,
+          message: `Hi ${appointment.fullName}, your ${appointment.serviceType} appointment at Centra Clinic is confirmed for ${formattedDate} at ${appointment.appointmentTime}. Please arrive 10 minutes early. Thank you!`,
+        }),
+      });
+    } catch (smsError) {
+      console.error("Failed to send SMS confirmation:", smsError);
+    }
 
     return NextResponse.json({ success: true, appointment }, { status: 201 });
   } catch (error) {
@@ -159,6 +184,10 @@ function isValidStatusTransition(current: string, next: string): boolean {
 
   if (["CANCELLED", "REJECTED"].includes(next)) {
     return ["PENDING", "CONFIRMED", "ACCEPTED"].includes(current);
+  }
+
+  if (next === "COMPLETED") {
+    return ["CONFIRMED", "ACCEPTED"].includes(current);
   }
 
   return current !== next && ["PENDING"].includes(current) && next === "CONFIRMED";
@@ -188,7 +217,7 @@ export async function PATCH(request: NextRequest) {
 
     if (
       !id ||
-      !["CONFIRMED", "CANCELLED", "REJECTED", "ACCEPTED"].includes(status)
+      !["CONFIRMED", "CANCELLED", "REJECTED", "ACCEPTED", "COMPLETED"].includes(status)
     ) {
       return NextResponse.json(
         {

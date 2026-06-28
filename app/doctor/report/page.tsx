@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 type ReportTemplate = "medical" | "prescription" | "medcert";
 
@@ -472,9 +472,17 @@ function MedicalCertificate({
   );
 }
 
-export default function DoctorReportPage() {
+export default function ReportPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const reportRef = useRef<HTMLDivElement>(null);
+
+  const isDoctorPage = pathname?.startsWith("/doctor");
+  const patientListApi = isDoctorPage
+    ? "/api/doctor/patients"
+    : "/api/admin/patients";
+  const patientsBackPath = isDoctorPage ? "/doctor/patients" : "/admin/patients";
+  const reportPath = isDoctorPage ? "/doctor/report" : "/admin/report";
 
   const [template, setTemplate] = useState<ReportTemplate>("medical");
   const [patientId, setPatientId] = useState("");
@@ -485,7 +493,6 @@ export default function DoctorReportPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
 
   const tabs = [
@@ -526,7 +533,7 @@ export default function DoctorReportPage() {
       try {
         setLoadingPatients(true);
 
-        const res = await fetch("/api/doctor/patients", {
+        const res = await fetch(patientListApi, {
           method: "GET",
           cache: "no-store",
         });
@@ -541,7 +548,7 @@ export default function DoctorReportPage() {
           setPatients(Array.isArray(json?.patients) ? json.patients : []);
         }
       } catch (err) {
-        console.error("[DOCTOR_REPORT_PATIENTS_LOAD]", err);
+        console.error("[REPORT_PATIENTS_LOAD]", err);
       } finally {
         if (!cancelled) {
           setLoadingPatients(false);
@@ -554,7 +561,7 @@ export default function DoctorReportPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [patientListApi]);
 
   useEffect(() => {
     if (!patientId) {
@@ -608,64 +615,11 @@ export default function DoctorReportPage() {
     setPatientId(id);
     setError("");
     setData(null);
-    router.push(`/doctor/report?patientId=${id}`);
+    router.push(`${reportPath}?patientId=${id}`);
   };
 
-  const downloadPDF = async () => {
-    if (!reportRef.current || !data?.patient) return;
-
-    try {
-      setDownloading(true);
-
-      const html2canvas = (await import("html2canvas")).default;
-      const jsPDF = (await import("jspdf")).default;
-
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
-
-      const safeName = data.patient.name
-        .replace(/[^a-z0-9]/gi, "-")
-        .toLowerCase();
-
-      const fileName =
-        template === "prescription"
-          ? `${safeName}-prescription.pdf`
-          : template === "medical"
-            ? `${safeName}-medical-history.pdf`
-            : `${safeName}-medical-certificate.pdf`;
-
-      pdf.save(fileName);
-    } catch (err) {
-      console.error("[PDF_DOWNLOAD]", err);
-      alert("Failed to generate PDF. Please try Print > Save as PDF.");
-    } finally {
-      setDownloading(false);
-    }
+  const saveAsPDF = () => {
+    window.print();
   };
 
   return (
@@ -674,10 +628,10 @@ export default function DoctorReportPage() {
         <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Doctor Report
+              Patient Reports
             </h1>
             <p className="text-sm text-slate-500">
-              Generate, review, print, and download patient medical documents.
+              Print or save patient documents as PDF.
             </p>
           </div>
 
@@ -708,16 +662,16 @@ export default function DoctorReportPage() {
               Print
             </button>
 
-<button
-  onClick={downloadPDF}
-  disabled={!data}
-  className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
->
-  Save as PDF
-</button>
+            <button
+              onClick={saveAsPDF}
+              disabled={!data}
+              className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Save as PDF
+            </button>
 
             <button
-              onClick={() => router.push("/doctor/patients")}
+              onClick={() => router.push(patientsBackPath)}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
               Back
@@ -803,7 +757,7 @@ export default function DoctorReportPage() {
               onClick={() => {
                 setPatientId("");
                 setError("");
-                router.push("/doctor/report");
+                router.push(reportPath);
               }}
               className="mt-5 rounded-2xl bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
@@ -833,7 +787,7 @@ export default function DoctorReportPage() {
                 onClick={() => {
                   setPatientId("");
                   setData(null);
-                  router.push("/doctor/report");
+                  router.push(reportPath);
                 }}
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
               >
@@ -869,4 +823,4 @@ export default function DoctorReportPage() {
       </main>
     </div>
   );
-}x  
+}

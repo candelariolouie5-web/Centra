@@ -111,6 +111,7 @@ export default function UserAppointmentCalendar() {
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, SlotInfo>>({});
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
 
   const mountedRef = useRef(true);
   const fetchedWeekRef = useRef<Set<string>>(new Set());
@@ -362,41 +363,51 @@ export default function UserAppointmentCalendar() {
       return;
     }
 
+    setIsBooking(true);
+
     try {
+      const bookingData = {
+        date: formatDate(selectedDate),
+        time: selectedTime,
+        name: fullName.trim(),
+        age,
+        contactNumber,
+        email: session.user.email || "",
+        serviceType,
+      };
+
+      console.log("📝 Booking data being sent:", bookingData);
+
       const res = await fetch("/api/appointment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          date: formatDate(selectedDate),
-          time: selectedTime,
-          name: fullName.trim(),
-          age,
-          contactNumber,
-          email: session.user.email || "",
-          serviceType,
-        }),
+        body: JSON.stringify(bookingData),
       });
 
+      const responseData = await res.json();
+      console.log("📨 Server response:", responseData);
+
       if (res.ok) {
-        alert("Appointment booked successfully!");
+        alert("✅ Appointment booked successfully! You will receive an SMS confirmation.");
         setSelectedDate(null);
         setSelectedTime(null);
         setShowConfirmModal(false);
+        setFullName("");
+        setAge("");
+        setContactNumber("");
       } else {
-        try {
-          const errorData = await res.json();
-          alert(errorData.error || "Failed to book appointment");
-        } catch {
-          alert("Failed to book appointment");
-        }
+        alert(`❌ ${responseData.error || "Failed to book appointment"}`);
       }
     } catch (err) {
+      console.error("❌ Booking error:", err);
       alert(
         "Error booking appointment: " +
           (err instanceof Error ? err.message : "Unknown error")
       );
+    } finally {
+      setIsBooking(false);
     }
   };
 
@@ -417,174 +428,178 @@ export default function UserAppointmentCalendar() {
   };
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-      <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_26%),linear-gradient(to_right,_#ffffff,_#f8faff)] px-6 py-6 md:px-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-              Patient Booking
-            </div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-              Book your appointment
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Fill in your details first, then choose an available schedule.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50 py-8 px-4 md:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+          <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_26%),linear-gradient(to_right,_#ffffff,_#f8faff)] px-6 py-6 md:px-8">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
+                  Patient Booking
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  Book your appointment
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Fill in your details first, then choose an available schedule.
+                </p>
+              </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">Service</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900 capitalize">
-                {serviceType}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">Same-day</p>
-              <p className="mt-1 text-sm font-semibold text-amber-700">Not allowed</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">Contact format</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">09XXXXXXXXX</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-8 p-6 md:p-8">
-        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
-              <User2 className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Patient Information</h3>
-              <p className="text-sm text-slate-500">
-                Please provide accurate booking details.
-              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <p className="text-xs font-medium text-slate-500">Service</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900 capitalize">
+                    {serviceType}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <p className="text-xs font-medium text-slate-500">Same-day</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-700">Not allowed</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <p className="text-xs font-medium text-slate-500">Contact format</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">09XXXXXXXXX</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Enter full name"
-              />
-              {formErrors.fullName && (
-                <p className="mt-2 text-xs font-medium text-red-500">{formErrors.fullName}</p>
-              )}
-            </div>
+          <div className="space-y-8 p-6 md:p-8">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
+                  <User2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Patient Information</h3>
+                  <p className="text-sm text-slate-500">
+                    Please provide accurate booking details.
+                  </p>
+                </div>
+              </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">Age</label>
-              <input
-                type="number"
-                min="1"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Enter age"
-              />
-              {formErrors.age && (
-                <p className="mt-2 text-xs font-medium text-red-500">{formErrors.age}</p>
-              )}
-            </div>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Enter full name"
+                  />
+                  {formErrors.fullName && (
+                    <p className="mt-2 text-xs font-medium text-red-500">{formErrors.fullName}</p>
+                  )}
+                </div>
 
-            <div>
-              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Phone className="h-4 w-4" />
-                Contact Number
-              </label>
-              <input
-                type="tel"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={11}
-                value={contactNumber}
-                onChange={(e) => setContactNumber(normalizePhone(e.target.value))}
-                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="09XXXXXXXXX"
-              />
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-slate-500">11 digits only</span>
-                <span
-                  className={`font-medium ${
-                    contactNumber.length === 11
-                      ? "text-emerald-600"
-                      : contactNumber.length > 0
-                        ? "text-amber-600"
-                        : "text-slate-400"
-                  }`}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Age</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Enter age"
+                  />
+                  {formErrors.age && (
+                    <p className="mt-2 text-xs font-medium text-red-500">{formErrors.age}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Phone className="h-4 w-4" />
+                    Contact Number
+                  </label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={11}
+                    value={contactNumber}
+                    onChange={(e) => setContactNumber(normalizePhone(e.target.value))}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="09XXXXXXXXX"
+                  />
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">11 digits only</span>
+                    <span
+                      className={`font-medium ${
+                        contactNumber.length === 11
+                          ? "text-emerald-600"
+                          : contactNumber.length > 0
+                            ? "text-amber-600"
+                            : "text-slate-400"
+                      }`}
+                    >
+                      {contactNumber.length}/11
+                    </span>
+                  </div>
+                  {formErrors.contactNumber && (
+                    <p className="mt-2 text-xs font-medium text-red-500">
+                      {formErrors.contactNumber}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <Stethoscope className="h-4 w-4" />
+                  Service
+                </label>
+                <select
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 >
-                  {contactNumber.length}/11
-                </span>
+                  <option value="ear">Ear</option>
+                  <option value="nose">Nose</option>
+                  <option value="throat">Throat</option>
+                  <option value="aesthetics">Aesthetics</option>
+                </select>
               </div>
-              {formErrors.contactNumber && (
-                <p className="mt-2 text-xs font-medium text-red-500">
-                  {formErrors.contactNumber}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <Stethoscope className="h-4 w-4" />
-              Service
-            </label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            >
-              <option value="ear">Ear</option>
-              <option value="nose">Nose</option>
-              <option value="throat">Throat</option>
-              <option value="aesthetics">Aesthetics</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h4 className="text-lg font-semibold text-slate-900">Schedule Selection</h4>
-              <p className="text-sm text-slate-500">
-                Pick a future date and available time slot.
-              </p>
             </div>
 
-            {selectedDate && selectedTime && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
-                <p className="font-semibold text-emerald-800">Selected schedule</p>
-                <p className="mt-1 text-emerald-700">
-                  {selectedDate.toDateString()} at {selectedTime}
-                </p>
-              </div>
-            )}
-          </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-900">Schedule Selection</h4>
+                  <p className="text-sm text-slate-500">
+                    Pick a future date and available time slot.
+                  </p>
+                </div>
 
-          <button
-            onClick={() => setShowCalendarModal(true)}
-            disabled={!isFormComplete}
-            className={`mt-5 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold shadow-lg transition-all ${
-              isFormComplete
-                ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 text-white hover:-translate-y-0.5 hover:shadow-xl"
-                : "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-            }`}
-            type="button"
-          >
-            {isFormComplete
-              ? "Select Appointment Date & Time"
-              : "Complete patient details first"}
-          </button>
+                {selectedDate && selectedTime && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+                    <p className="font-semibold text-emerald-800">Selected schedule</p>
+                    <p className="mt-1 text-emerald-700">
+                      {selectedDate.toDateString()} at {selectedTime}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowCalendarModal(true)}
+                disabled={!isFormComplete}
+                className={`mt-5 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold shadow-lg transition-all ${
+                  isFormComplete
+                    ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 text-white hover:-translate-y-0.5 hover:shadow-xl"
+                    : "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
+                }`}
+                type="button"
+              >
+                {isFormComplete
+                  ? "Select Appointment Date & Time"
+                  : "Complete patient details first"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -812,10 +827,15 @@ export default function UserAppointmentCalendar() {
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={handleBookAppointment}
-                className="flex-1 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 font-semibold text-white shadow-lg transition hover:opacity-95"
+                disabled={isBooking}
+                className={`flex-1 rounded-2xl px-4 py-3 font-semibold text-white shadow-lg transition ${
+                  isBooking
+                    ? "bg-slate-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-indigo-600 to-violet-600 hover:opacity-95"
+                }`}
                 type="button"
               >
-                Confirm Booking
+                {isBooking ? "Booking..." : "Confirm Booking"}
               </button>
 
               <button

@@ -10,15 +10,20 @@ export default function AppointmentPage() {
   const { data: session, status } = useSession();
 
   useEffect(() => {
-    if (status === "loading") return; // Still loading
+    if (status === "loading") return;
 
     if (!session) {
-      router.push("/login"); // redirect if not logged in
+      router.push("/login");
     }
   }, [session, status, router]);
 
-  if (status === "loading") return <div className="p-10 text-center text-white">Loading appointment...</div>;
-  if (!session) return null; // render nothing if not logged in
+  if (status === "loading") {
+    return <div className="p-10 text-center text-gray-900">Loading appointment...</div>;
+  }
+
+  if (!session) {
+    return null;
+  }
 
   return (
     <Suspense fallback={<div className="p-10 text-center text-gray-900">Loading appointment...</div>}>

@@ -1,3 +1,5 @@
+// app/api/auth/[...nextauth]/route.ts
+
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -79,11 +81,11 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-  GoogleProvider({
-  clientId: process.env.GOOGLE_CLIENT_ID!,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-  allowDangerousEmailAccountLinking: true,
-}),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
+    }),
 
     CredentialsProvider({
       id: "admin-credentials",
@@ -186,16 +188,71 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+
+    CredentialsProvider({
+      id: "secretary-credentials",
+      name: "secretary-credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email as string },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            password: true,
+            role: true,
+            isActive: true,
+          },
+        });
+
+        if (
+          !user ||
+          !user.isActive ||
+          !user.password ||
+          user.role !== "SECRETARY"
+        ) {
+          return null;
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        };
+      },
+    }),
   ],
   callbacks: {
-async signIn({ user, account }) {
+    async signIn({ user, account }) {
       if (account?.provider === "google") {
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email! },
           select: { role: true, isActive: true },
         });
 
-        if (existingUser?.role === "ADMIN" || existingUser?.role === "DOCTOR") {
+        if (
+          existingUser?.role === "ADMIN" ||
+          existingUser?.role === "DOCTOR" ||
+          existingUser?.role === "SECRETARY"
+        ) {
           return false;
         }
 
@@ -251,7 +308,7 @@ async signIn({ user, account }) {
           ...session.user,
           id: token.id as string,
           email: userEmail,
-          role: token.role as "USER" | "ADMIN" | "DOCTOR",
+          role: token.role as "USER" | "ADMIN" | "DOCTOR" | "SECRETARY",
         };
       }
 

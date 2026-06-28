@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import {
   Activity,
   BarChart3,
-  CalendarCheck,
   CalendarDays,
   RefreshCcw,
   TrendingUp,
@@ -1036,86 +1035,6 @@ export default function AnalyticsPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
-            </section>
-
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="rounded-2xl bg-cyan-50 p-3 text-cyan-700">
-                  <CalendarCheck className="h-5 w-5" />
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Graph-Based Business Summary
-                  </h3>
-
-                  <p className="text-sm text-slate-500">
-                    Key observations generated from the analytics graphs.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                    Top Service
-                  </p>
-
-                  <p className="mt-2 text-lg font-bold text-slate-900">
-                    {businessInsights?.topService?.name || "N/A"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                    Busiest Day
-                  </p>
-
-                  <p className="mt-2 text-lg font-bold text-slate-900">
-                    {businessInsights?.busiestDay?.day || "N/A"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                    Peak Session
-                  </p>
-
-                  <p className="mt-2 text-lg font-bold text-slate-900">
-                    {businessInsights?.peakTime?.timeBlock || "N/A"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                    Cancellation Rate
-                  </p>
-
-                  <p className="mt-2 text-lg font-bold text-slate-900">
-                    {businessInsights?.cancellationRate || 0}%
-                  </p>
-                </div>
-              </div>
-
-              {businessInsights?.recommendations?.length ? (
-                <div className="mt-5 space-y-3">
-                  {businessInsights.recommendations.map((item, index) => (
-                    <div
-                      key={index}
-                      className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4 text-sm leading-relaxed text-slate-700"
-                    >
-                      <span className="mr-2 font-bold text-cyan-700">
-                        {index + 1}.
-                      </span>
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                  No business recommendations available yet.
-                </div>
-              )}
             </section>
           </>
         )}
