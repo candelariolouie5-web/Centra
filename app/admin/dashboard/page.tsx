@@ -151,21 +151,29 @@ export default function DashboardPage() {
   }, [todayAppointments]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/20">
       {/* HEADER */}
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
-        <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Clinic Dashboard
-            </h1>
-            <p className="text-sm text-slate-500">
-              Monitor appointments, consultations, and daily patient flow.
-            </p>
+      <header className="sticky top-0 z-20 border-b border-slate-200/60 bg-white/90 backdrop-blur-2xl supports-[backdrop-filter]:bg-white/80">
+        <div className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            {/* Logo Icon */}
+            <div className="hidden sm:flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/25">
+              <Stethoscope className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Centra Clinic PH
+              </h1>
+              <p className="text-sm text-slate-500 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Dashboard Overview
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600 shadow-sm">
+            <div className="hidden md:flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm">
+              <CalendarDays className="h-4 w-4 text-cyan-500" />
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "long",
@@ -176,55 +184,62 @@ export default function DashboardPage() {
 
             <button
               onClick={fetchTodayAppointments}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:from-cyan-700 hover:to-blue-700"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-cyan-500/30 hover:-translate-y-0.5 active:translate-y-0"
             >
               <RefreshCcw className="h-4 w-4" />
-              Refresh
+              Refresh Data
             </button>
           </div>
         </div>
       </header>
 
-      <main className="p-6">
-        {/* HERO */}
-        <div className="mb-6 overflow-hidden rounded-[28px] border border-cyan-100 bg-white shadow-[0_24px_60px_-28px_rgba(14,165,233,0.28)]">
-          <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 px-6 py-8 text-white md:px-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.16),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.08),_transparent_28%)]" />
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
-                  <Stethoscope className="h-4 w-4" />
-                  Centra Clinic Overview
+      <main className="p-6 lg:p-8">
+        {/* HERO BANNER */}
+        <div className="mb-8 overflow-hidden rounded-[32px] border border-cyan-200/60 bg-white shadow-xl shadow-cyan-500/10">
+          <div className="relative overflow-hidden bg-gradient-to-br from-cyan-600 via-sky-600 to-blue-700 px-6 py-8 md:px-10 md:py-10 text-white">
+            {/* Decorative background pattern */}
+            <div className="absolute inset-0 opacity-30">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,_rgba(255,255,255,0.1)_0%,_transparent_60%)]" />
+            </div>
+            
+            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex-1">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
+                  <Stethoscope className="h-3.5 w-3.5" />
+                  Centra Clinic PH Overview
                 </div>
-                <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-                  Welcome back, {session?.user?.name || "Doctor"} 👋
+                <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+                  Welcome back, {session?.user?.name?.split(" ")[0] || "Doctor"}
+                  <span className="inline-block ml-2 animate-bounce">👋</span>
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm text-cyan-50/90 md:text-base">
-                  Here is a complete overview of clinic performance, patient
-                  appointments, and consultation services.
+                <p className="mt-3 max-w-2xl text-base text-cyan-100/80 md:text-lg leading-relaxed">
+                  Monitor your clinic&apos;s performance, track patient appointments, 
+                  and analyze consultation trends in real-time.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
-                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 px-5 py-4 text-center hover:bg-white/20 transition-colors">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-cyan-200 mb-1">
                     Year
                   </p>
-                  <p className="mt-1 text-lg font-bold">{year}</p>
+                  <p className="text-2xl font-bold">{year}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
-                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+                <div className="rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 px-5 py-4 text-center hover:bg-white/20 transition-colors">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-cyan-200 mb-1">
                     Today
                   </p>
-                  <p className="mt-1 text-lg font-bold">
+                  <p className="text-2xl font-bold">
                     {todayAppointments.length}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
-                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+                <div className="rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 px-5 py-4 text-center hover:bg-white/20 transition-colors">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-cyan-200 mb-1">
                     Services
                   </p>
-                  <p className="mt-1 text-lg font-bold">
+                  <p className="text-2xl font-bold">
                     {consultationData.length}
                   </p>
                 </div>
@@ -233,97 +248,115 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 3 STAT CARDS */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-[24px] border border-cyan-100 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-600">
-                  Total Appointments
-                </p>
-                <p className="mt-3 text-3xl font-bold text-slate-900">
-                  {totalBookedAppointments}
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Total booked appointments for selected months
-                </p>
+        {/* STAT CARDS */}
+        <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {/* Card 1 - Total Appointments */}
+          <div className="group relative overflow-hidden rounded-[24px] border border-cyan-100/80 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-1">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-cyan-100/40 to-transparent rounded-bl-3xl transition-opacity group-hover:opacity-100 opacity-70" />
+            <div className="relative">
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-100 to-cyan-50 text-cyan-600 shadow-sm">
+                  <CalendarDays className="h-6 w-6" />
+                </div>
+                <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 border border-emerald-100">
+                  <TrendingUp className="h-3 w-3" />
+                  12%
+                </div>
               </div>
-              <div className="rounded-2xl bg-cyan-100 p-3 text-cyan-700">
-                <CalendarDays className="h-5 w-5" />
-              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
+                Total Appointments
+              </p>
+              <p className="text-3xl font-bold text-slate-900 tracking-tight">
+                {totalBookedAppointments.toLocaleString()}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Booked for selected months
+              </p>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
-                  Total Patients Today
-                </p>
-                <p className="mt-3 text-3xl font-bold text-slate-900">
-                  {uniquePatientsToday}
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Unique patients scheduled for today
-                </p>
+          {/* Card 2 - Total Patients Today */}
+          <div className="group relative overflow-hidden rounded-[24px] border border-emerald-100/80 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-100/40 to-transparent rounded-bl-3xl transition-opacity group-hover:opacity-100 opacity-70" />
+            <div className="relative">
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 shadow-sm">
+                  <Users className="h-6 w-6" />
+                </div>
+                <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 border border-emerald-100">
+                  <TrendingUp className="h-3 w-3" />
+                  8%
+                </div>
               </div>
-              <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
-                <Users className="h-5 w-5" />
-              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
+                Patients Today
+              </p>
+              <p className="text-3xl font-bold text-slate-900 tracking-tight">
+                {uniquePatientsToday}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Unique patients scheduled
+              </p>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-violet-100 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
-                  Consultation Records
-                </p>
-                <p className="mt-3 text-3xl font-bold text-slate-900">
-                  {totalConsultations}
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Total accepted and confirmed bookings
-                </p>
+          {/* Card 3 - Consultation Records */}
+          <div className="group relative overflow-hidden rounded-[24px] border border-violet-100/80 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/10 hover:-translate-y-1">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-violet-100/40 to-transparent rounded-bl-3xl transition-opacity group-hover:opacity-100 opacity-70" />
+            <div className="relative">
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 text-violet-600 shadow-sm">
+                  <ClipboardList className="h-6 w-6" />
+                </div>
+                <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 border border-emerald-100">
+                  <TrendingUp className="h-3 w-3" />
+                  15%
+                </div>
               </div>
-              <div className="rounded-2xl bg-violet-100 p-3 text-violet-700">
-                <ClipboardList className="h-5 w-5" />
-              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
+                Consultation Records
+              </p>
+              <p className="text-3xl font-bold text-slate-900 tracking-tight">
+                {totalConsultations.toLocaleString()}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Accepted & confirmed bookings
+              </p>
             </div>
           </div>
         </div>
 
-        {/* CHART ROW */}
+        {/* CHARTS ROW */}
         {mounted && (
-          <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            {/* APPOINTMENT CHART */}
-            <div className="xl:col-span-2 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
+            {/* APPOINTMENT BAR CHART */}
+            <div className="xl:col-span-2 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Booked Appointments Report
+                    Appointment Analytics
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Monthly appointment counts based on selected filters
+                    Monthly booking trends for Centra Clinic PH
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-500">Year</span>
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 shadow-sm">
+                  <span className="text-sm font-semibold text-slate-500">Year</span>
                   <input
                     type="number"
                     value={year}
                     onChange={(e) =>
                       setYear(parseInt(e.target.value) || new Date().getFullYear())
                     }
-                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400"
+                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all"
                     aria-label="Year"
                   />
                 </div>
               </div>
 
               <div className="p-6">
-                <div className="mb-5 flex flex-wrap gap-2">
+                <div className="mb-6 flex flex-wrap gap-2">
                   {[
                     "Jan",
                     "Feb",
@@ -340,7 +373,11 @@ export default function DashboardPage() {
                   ].map((month, index) => (
                     <label
                       key={index}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
+                      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold cursor-pointer transition-all duration-200 ${
+                        selectedMonths.includes(index + 1)
+                          ? "border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -358,97 +395,141 @@ export default function DashboardPage() {
                             );
                           }
                         }}
+                        className="sr-only"
                       />
                       {month}
                     </label>
                   ))}
                 </div>
 
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={appointmentData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" stroke="#94a3b8" />
-                    <YAxis stroke="#94a3b8" />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+                <ResponsiveContainer width="100%" height={340}>
+                  <BarChart data={appointmentData} barSize={28}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="#94a3b8" 
+                      tick={{ fontSize: 12, fontWeight: 500 }}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                    />
+                    <YAxis 
+                      stroke="#94a3b8" 
+                      tick={{ fontSize: 12, fontWeight: 500 }}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+                        padding: '12px 16px',
+                      }}
+                    />
+                    <Bar 
+                      dataKey="count" 
+                      fill="url(#barGradient)" 
+                      radius={[10, 10, 0, 0]}
+                    />
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#06b6d4" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* CONSULTATION PIE */}
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-6 py-5">
+            {/* CONSULTATION PIE CHART */}
+            <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-6 py-5">
                 <h3 className="text-lg font-semibold text-slate-900">
                   Consultation Breakdown
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Service distribution across consultations
+                  Service type distribution
                 </p>
               </div>
 
               <div className="p-6">
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie
                       data={consultationData}
                       dataKey="value"
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={3}
+                      strokeWidth={3}
                     >
                       {consultationData.map((_, index) => (
                         <Cell
                           key={index}
                           fill={COLORS[index % COLORS.length]}
+                          stroke="white"
                         />
                       ))}
                     </Pie>
 
-                    <Legend verticalAlign="bottom" />
-                    <Tooltip />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value) => (
+                        <span className="text-sm font-medium text-slate-700">{value}</span>
+                      )}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
 
-                <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                <div className="mt-6 space-y-4 rounded-2xl bg-gradient-to-br from-slate-50 to-white p-5 border border-slate-100">
                   {highestService && (
-                    <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                    <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-emerald-100">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 p-2.5 text-emerald-600">
                           <TrendingUp className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
-                            Highest
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                            Most Popular
                           </p>
                           <p className="text-sm font-semibold text-slate-800">
                             {highestService.name}
                           </p>
                         </div>
                       </div>
-                      <span className="text-sm font-bold text-emerald-600">
+                      <span className="text-base font-bold text-emerald-600">
                         {highestService.percentage}%
                       </span>
                     </div>
                   )}
 
                   {lowestService && (
-                    <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-white px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-lg bg-rose-100 p-2 text-rose-600">
+                    <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-rose-100">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-gradient-to-br from-rose-100 to-rose-50 p-2.5 text-rose-500">
                           <Activity className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
-                            Lowest
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                            Least Popular
                           </p>
                           <p className="text-sm font-semibold text-slate-800">
                             {lowestService.name}
                           </p>
                         </div>
                       </div>
-                      <span className="text-sm font-bold text-rose-600">
+                      <span className="text-base font-bold text-rose-500">
                         {lowestService.percentage}%
                       </span>
                     </div>
@@ -459,79 +540,110 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* TODAY APPOINTMENTS */}
-        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        {/* TODAY'S APPOINTMENTS TABLE */}
+        <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
-                Appointments Scheduled Today
+                Today&apos;s Appointments — Centra Clinic PH
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Live list of today&apos;s confirmed and pending appointments
+                Scheduled patient visits for today
               </p>
             </div>
 
             <button
               onClick={fetchTodayAppointments}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-95"
             >
               <RefreshCcw className="h-4 w-4" />
-              Refresh
+              Refresh List
             </button>
           </div>
 
           {todayAppointments.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                <CalendarDays className="h-6 w-6" />
+            <div className="p-16 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 text-slate-400">
+                <CalendarDays className="h-8 w-8" />
               </div>
-              <p className="text-base font-medium text-slate-600">
-                No appointments scheduled today
+              <p className="text-lg font-semibold text-slate-600">
+                No appointments for today
               </p>
-              <p className="mt-1 text-sm text-slate-400">
-                New appointments will appear here automatically.
+              <p className="mt-2 text-sm text-slate-400">
+                New appointments will appear here automatically
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
                 <thead>
-                  <tr className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                    <th className="px-6 py-4">Patient</th>
-                    <th className="px-6 py-4">Time</th>
-                    <th className="px-6 py-4">Service</th>
-                    <th className="px-6 py-4">Status</th>
+                  <tr className="bg-gradient-to-r from-slate-50 to-white text-left">
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                      Patient Name
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                      Appointment Time
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                      Service Type
+                    </th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                      Status
+                    </th>
                   </tr>
                 </thead>
 
-                <tbody>
-                  {todayAppointments.map((appointment) => (
+                <tbody className="divide-y divide-slate-50">
+                  {todayAppointments.map((appointment, index) => (
                     <tr
                       key={appointment.id}
-                      className="border-t border-slate-100 transition hover:bg-slate-50/70"
+                      className="transition-all duration-200 hover:bg-gradient-to-r hover:from-cyan-50/50 hover:to-transparent"
                     >
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">
-                          {appointment.fullName}
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 text-cyan-700 font-bold text-sm shadow-sm">
+                            {appointment.fullName
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-slate-900">
+                            {appointment.fullName}
+                          </span>
                         </div>
                       </td>
 
-                      <td className="px-6 py-4 text-slate-600">
-                        {appointment.appointmentTime}
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                          {appointment.appointmentTime}
+                        </span>
                       </td>
 
-                      <td className="px-6 py-4 text-slate-600">
-                        {appointment.serviceType}
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-medium text-slate-700">
+                          {appointment.serviceType}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold ${
                             appointment.status === "CONFIRMED"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-blue-100 text-blue-700"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : appointment.status === "PENDING"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-slate-100 text-slate-600 border border-slate-200"
                           }`}
                         >
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            appointment.status === "CONFIRMED"
+                              ? "bg-emerald-500"
+                              : appointment.status === "PENDING"
+                              ? "bg-amber-500"
+                              : "bg-slate-400"
+                          }`} />
                           {appointment.status}
                         </span>
                       </td>

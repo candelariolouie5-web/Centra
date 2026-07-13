@@ -9,6 +9,19 @@ import {
   RefreshCcw,
   TrendingUp,
   Users,
+  Clock,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  UserCheck,
+  Stethoscope,
+  Shield,
+  Award,
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingDown,
+  Filter,
+  Search,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Cell } from "recharts";
@@ -265,20 +278,29 @@ function ChartCard({
   description,
   children,
   height = 330,
+  icon,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   height?: number;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-5">
-        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-
-        {description && (
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
-        )}
+    <div className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/50">
+      <div className="mb-5 flex items-start justify-between">
+        <div>
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            {icon && <span className="text-cyan-600">{icon}</span>}
+            {title}
+          </h3>
+          {description && (
+            <p className="mt-1 text-sm text-slate-500">{description}</p>
+          )}
+        </div>
+        <div className="rounded-lg bg-slate-50 p-1.5 text-slate-400 transition-colors group-hover:bg-cyan-50 group-hover:text-cyan-600">
+          <BarChart3 className="h-4 w-4" />
+        </div>
       </div>
 
       <div style={{ width: "100%", height }}>{children}</div>
@@ -290,23 +312,53 @@ function MetricCard({
   label,
   value,
   icon,
+  trend,
+  trendLabel,
 }: {
   label: string;
   value: string | number;
   icon: React.ReactNode;
+  trend?: number;
+  trendLabel?: string;
 }) {
+  const isPositive = trend !== undefined && trend > 0;
+  const isNegative = trend !== undefined && trend < 0;
+
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-4">
+    <div className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/50">
+      <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
             {label}
           </p>
-
-          <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
+          {trend !== undefined && (
+            <div className="mt-1 flex items-center gap-1.5 text-xs">
+              <span
+                className={`flex items-center gap-0.5 font-medium ${
+                  isPositive
+                    ? "text-emerald-600"
+                    : isNegative
+                    ? "text-rose-600"
+                    : "text-slate-400"
+                }`}
+              >
+                {isPositive ? (
+                  <ArrowUpRight className="h-3 w-3" />
+                ) : isNegative ? (
+                  <ArrowDownRight className="h-3 w-3" />
+                ) : null}
+                {trend}%
+              </span>
+              {trendLabel && (
+                <span className="text-slate-400">{trendLabel}</span>
+              )}
+            </div>
+          )}
         </div>
-
-        <div className="rounded-2xl bg-cyan-50 p-3 text-cyan-700">{icon}</div>
+        <div className="rounded-2xl bg-gradient-to-br from-cyan-100 to-blue-100 p-3 text-cyan-700 transition-transform group-hover:scale-110">
+          {icon}
+        </div>
       </div>
     </div>
   );
@@ -504,14 +556,14 @@ export default function AnalyticsPage() {
   }, [businessInsights]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)]">
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/30">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl shadow-sm">
         <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+              <Activity className="h-6 w-6 text-cyan-600" />
               Analytics
             </h1>
-
             <p className="text-sm text-slate-500">
               Graph-based business analysis for bookings, services, schedules,
               cancellations, and doctor workload.
@@ -519,14 +571,20 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600 shadow-sm">
-              Welcome, {session?.user?.name || "Admin"}
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 shadow-sm">
+              <CalendarDays className="h-4 w-4 text-cyan-600" />
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
             </div>
 
             <button
               onClick={refreshAnalytics}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:from-cyan-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:from-cyan-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCcw className="h-4 w-4" />
               {loading ? "Refreshing..." : "Refresh Analytics"}
@@ -542,34 +600,67 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        <section className="overflow-hidden rounded-[28px] border border-cyan-100 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-3xl border border-cyan-100 bg-white shadow-xl shadow-cyan-600/5">
           <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 px-6 py-8 text-white md:px-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.16),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.08),_transparent_28%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.15),_transparent_40%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.05),_transparent_40%)]" />
 
-            <div className="relative">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
-                <BarChart3 className="h-4 w-4" />
-                Business Analytics
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold backdrop-blur">
+                  <BarChart3 className="h-4 w-4" />
+                  Business Analytics
+                </div>
+
+                <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+                  Clinic Performance Through Data
+                </h2>
+
+                <p className="mt-2 max-w-3xl text-sm text-cyan-50/90 md:text-base">
+                  Use these visual reports to identify high-demand services, peak
+                  one-hour clinic sessions, booking growth, cancellation behavior,
+                  and workload patterns.
+                </p>
               </div>
 
-              <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-                Clinic Performance Through Data
-              </h2>
-
-              <p className="mt-2 max-w-3xl text-sm text-cyan-50/90 md:text-base">
-                Use these visual reports to identify high-demand services, peak
-                one-hour clinic sessions, booking growth, cancellation behavior,
-                and workload patterns.
-              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+                    Bookings
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {totalBookedAppointments}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+                    Today
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {uniquePatientsToday}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/10 px-4 py-3 text-center backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
+                    Growth
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {businessInsights
+                      ? `${businessInsights.bookingGrowthPercentage}%`
+                      : "0%"}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Selected Bookings"
             value={totalBookedAppointments}
             icon={<CalendarDays className="h-5 w-5" />}
+            trend={businessInsights?.bookingGrowthPercentage}
+            trendLabel="vs last month"
           />
 
           <MetricCard
@@ -585,20 +676,23 @@ export default function AnalyticsPage() {
           />
 
           <MetricCard
-            label="Growth"
-            value={
+            label="Cancellation Rate"
+            value={businessInsights ? `${businessInsights.cancellationRate}%` : "0%"}
+            icon={<XCircle className="h-5 w-5" />}
+            trend={
               businessInsights
-                ? `${businessInsights.bookingGrowthPercentage}%`
-                : "0%"
+                ? Math.round((businessInsights.cancellationRate || 0) * 10) / 10
+                : 0
             }
-            icon={<TrendingUp className="h-5 w-5" />}
+            trendLabel="rate"
           />
         </section>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <Filter className="h-5 w-5 text-cyan-600" />
                 Monthly Booking Filter
               </h3>
 
@@ -607,7 +701,7 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
               <span className="text-sm font-medium text-slate-500">Year</span>
 
               <input
@@ -616,7 +710,7 @@ export default function AnalyticsPage() {
                 onChange={(e) =>
                   setYear(parseInt(e.target.value) || new Date().getFullYear())
                 }
-                className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400"
+                className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
               />
             </div>
           </div>
@@ -638,7 +732,11 @@ export default function AnalyticsPage() {
             ].map((month, index) => (
               <label
                 key={month}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                  selectedMonths.includes(index + 1)
+                    ? "border-cyan-400 bg-cyan-50 text-cyan-700 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
               >
                 <input
                   type="checkbox"
@@ -654,6 +752,7 @@ export default function AnalyticsPage() {
                       );
                     }
                   }}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-cyan-600 focus:ring-2 focus:ring-cyan-200"
                 />
 
                 {month}
@@ -668,13 +767,22 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Monthly Appointment Trend"
                 description="Line graph showing booked appointments by month."
+                icon={<TrendingUp className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={appointmentData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" stroke="#64748b" />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Line
                       type="monotone"
@@ -683,6 +791,7 @@ export default function AnalyticsPage() {
                       stroke="#06b6d4"
                       strokeWidth={3}
                       dot={{ r: 5 }}
+                      activeDot={{ r: 7 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -691,13 +800,22 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Monthly Appointment Volume"
                 description="Bar graph showing appointment volume by month."
+                icon={<BarChart3 className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={appointmentData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" stroke="#64748b" />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="count"
@@ -714,13 +832,22 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="This Month vs Last Month"
                 description="Booking comparison between the current and previous month."
+                icon={<Calendar className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={bookingComparisonData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" stroke="#64748b" />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="bookings"
@@ -735,6 +862,7 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Consultation Service Distribution"
                 description="Pie graph showing service share across consultations."
+                icon={<Stethoscope className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -755,7 +883,15 @@ export default function AnalyticsPage() {
                       ))}
                     </Pie>
 
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -765,15 +901,16 @@ export default function AnalyticsPage() {
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <ChartCard
                 title="Service Demand Ranking"
-                description={`Top service: ${
+                description={`Top: ${
                   highestService?.name ||
                   businessInsights?.topService?.name ||
                   "N/A"
-                } | Lowest service: ${
+                } | Bottom: ${
                   lowestService?.name ||
                   businessInsights?.lowestService?.name ||
                   "N/A"
                 }`}
+                icon={<Award className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={serviceDemandData} layout="vertical">
@@ -789,7 +926,15 @@ export default function AnalyticsPage() {
                       stroke="#64748b"
                       width={130}
                     />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="count"
@@ -804,6 +949,7 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Appointment Status Breakdown"
                 description="Distribution of pending, confirmed, accepted, rejected, and cancelled bookings."
+                icon={<CheckCircle2 className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -825,7 +971,15 @@ export default function AnalyticsPage() {
                       ))}
                     </Pie>
 
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -836,13 +990,22 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Busiest Booking Days"
                 description="Graph showing which weekdays receive the most bookings."
+                icon={<CalendarDays className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dayDemandData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="day" stroke="#64748b" />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="count"
@@ -857,6 +1020,7 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Peak Booking Sessions"
                 description="One-hour clinic sessions from 8:00 AM to 5:00 PM."
+                icon={<Clock className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={timeDemandData}>
@@ -871,7 +1035,15 @@ export default function AnalyticsPage() {
                       tick={{ fontSize: 11 }}
                     />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="count"
@@ -888,6 +1060,7 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Doctor Workload"
                 description="Assigned appointment volume per doctor."
+                icon={<Shield className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={doctorWorkloadData} layout="vertical">
@@ -903,7 +1076,15 @@ export default function AnalyticsPage() {
                       stroke="#64748b"
                       width={150}
                     />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                     <Bar
                       dataKey="count"
@@ -918,6 +1099,7 @@ export default function AnalyticsPage() {
               <ChartCard
                 title="Cancellation / Rejection Rate"
                 description="Visual indicator of cancelled and rejected bookings."
+                icon={<XCircle className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -948,7 +1130,15 @@ export default function AnalyticsPage() {
                       <Cell fill="#06b6d4" />
                     </Pie>
 
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -960,6 +1150,7 @@ export default function AnalyticsPage() {
                 title="Today's Status Graph"
                 description="Status distribution for today's appointments."
                 height={280}
+                icon={<CheckCircle2 className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -980,7 +1171,15 @@ export default function AnalyticsPage() {
                       ))}
                     </Pie>
 
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -990,13 +1189,22 @@ export default function AnalyticsPage() {
                 title="Today's Service Graph"
                 description="Service demand for today."
                 height={280}
+                icon={<Stethoscope className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={todayServiceData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" stroke="#64748b" />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Bar
                       dataKey="count"
                       name="Appointments"
@@ -1011,6 +1219,7 @@ export default function AnalyticsPage() {
                 title="Today's One-Hour Sessions"
                 description="Today’s appointments grouped by 8 AM to 5 PM sessions."
                 height={280}
+                icon={<Clock className="h-5 w-5" />}
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={todayTimeData}>
@@ -1025,7 +1234,15 @@ export default function AnalyticsPage() {
                       tick={{ fontSize: 10 }}
                     />
                     <YAxis stroke="#64748b" allowDecimals={false} />
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "12px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Bar
                       dataKey="count"
                       name="Appointments"

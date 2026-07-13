@@ -9,6 +9,7 @@ import {
   Phone,
   User2,
   Stethoscope,
+  Check, // <-- added for confirmation icon
 } from "lucide-react";
 
 type ServiceType = "ear" | "nose" | "throat" | "aesthetics";
@@ -112,6 +113,16 @@ export default function UserAppointmentCalendar() {
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, SlotInfo>>({});
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+
+  // 👇 NEW STATE for success confirmation screen
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successData, setSuccessData] = useState<{
+    date: Date;
+    time: string;
+    patient: string;
+    contact: string;
+    service: ServiceType;
+  } | null>(null);
 
   const mountedRef = useRef(true);
   const fetchedWeekRef = useRef<Set<string>>(new Set());
@@ -390,13 +401,22 @@ export default function UserAppointmentCalendar() {
       console.log("📨 Server response:", responseData);
 
       if (res.ok) {
-        alert("✅ Appointment booked successfully! You will receive an SMS confirmation.");
+        // ✅ SUCCESS – show confirmation screen
+        setSuccessData({
+          date: selectedDate,
+          time: selectedTime,
+          patient: fullName.trim(),
+          contact: contactNumber,
+          service: serviceType,
+        });
+        setShowSuccess(true);
+        setShowConfirmModal(false);
         setSelectedDate(null);
         setSelectedTime(null);
-        setShowConfirmModal(false);
-        setFullName("");
-        setAge("");
-        setContactNumber("");
+        // Optionally reset form fields (or keep them)
+        // setFullName("");
+        // setAge("");
+        // setContactNumber("");
       } else {
         alert(`❌ ${responseData.error || "Failed to book appointment"}`);
       }
@@ -425,6 +445,16 @@ export default function UserAppointmentCalendar() {
     setWeekStart(
       new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7)
     );
+  };
+
+  // Reset success state and go back to booking form
+  const handleBookAnother = () => {
+    setShowSuccess(false);
+    setSuccessData(null);
+    // You may also reset form fields if desired
+    setFullName("");
+    setAge("");
+    setContactNumber("");
   };
 
   return (
@@ -464,145 +494,226 @@ export default function UserAppointmentCalendar() {
             </div>
           </div>
 
-          <div className="space-y-8 p-6 md:p-8">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
-                  <User2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Patient Information</h3>
-                  <p className="text-sm text-slate-500">
-                    Please provide accurate booking details.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                    placeholder="Enter full name"
-                  />
-                  {formErrors.fullName && (
-                    <p className="mt-2 text-xs font-medium text-red-500">{formErrors.fullName}</p>
-                  )}
+          {!showSuccess ? (
+            /* ─── BOOKING FORM (shown when not confirmed) ─── */
+            <div className="space-y-8 p-6 md:p-8">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
+                    <User2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Patient Information</h3>
+                    <p className="text-sm text-slate-500">
+                      Please provide accurate booking details.
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Age</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                    placeholder="Enter age"
-                  />
-                  {formErrors.age && (
-                    <p className="mt-2 text-xs font-medium text-red-500">{formErrors.age}</p>
-                  )}
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      placeholder="Enter full name"
+                    />
+                    {formErrors.fullName && (
+                      <p className="mt-2 text-xs font-medium text-red-500">{formErrors.fullName}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Age</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      placeholder="Enter age"
+                    />
+                    {formErrors.age && (
+                      <p className="mt-2 text-xs font-medium text-red-500">{formErrors.age}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Phone className="h-4 w-4" />
+                      Contact Number
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={11}
+                      value={contactNumber}
+                      onChange={(e) => setContactNumber(normalizePhone(e.target.value))}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      placeholder="09XXXXXXXXX"
+                    />
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">11 digits only</span>
+                      <span
+                        className={`font-medium ${
+                          contactNumber.length === 11
+                            ? "text-emerald-600"
+                            : contactNumber.length > 0
+                              ? "text-amber-600"
+                              : "text-slate-400"
+                        }`}
+                      >
+                        {contactNumber.length}/11
+                      </span>
+                    </div>
+                    {formErrors.contactNumber && (
+                      <p className="mt-2 text-xs font-medium text-red-500">
+                        {formErrors.contactNumber}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <div>
+                <div className="mt-5">
                   <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Phone className="h-4 w-4" />
-                    Contact Number
+                    <Stethoscope className="h-4 w-4" />
+                    Service
                   </label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={11}
-                    value={contactNumber}
-                    onChange={(e) => setContactNumber(normalizePhone(e.target.value))}
+                  <select
+                    value={serviceType}
+                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
                     className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                    placeholder="09XXXXXXXXX"
-                  />
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">11 digits only</span>
-                    <span
-                      className={`font-medium ${
-                        contactNumber.length === 11
-                          ? "text-emerald-600"
-                          : contactNumber.length > 0
-                            ? "text-amber-600"
-                            : "text-slate-400"
-                      }`}
-                    >
-                      {contactNumber.length}/11
-                    </span>
-                  </div>
-                  {formErrors.contactNumber && (
-                    <p className="mt-2 text-xs font-medium text-red-500">
-                      {formErrors.contactNumber}
-                    </p>
-                  )}
+                  >
+                    <option value="ear">Ear</option>
+                    <option value="nose">Nose</option>
+                    <option value="throat">Throat</option>
+                    <option value="aesthetics">Aesthetics</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="mt-5">
-                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <Stethoscope className="h-4 w-4" />
-                  Service
-                </label>
-                <select
-                  value={serviceType}
-                  onChange={(e) => setServiceType(e.target.value as ServiceType)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900">Schedule Selection</h4>
+                    <p className="text-sm text-slate-500">
+                      Pick a future date and available time slot.
+                    </p>
+                  </div>
+
+                  {selectedDate && selectedTime && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+                      <p className="font-semibold text-emerald-800">Selected schedule</p>
+                      <p className="mt-1 text-emerald-700">
+                        {selectedDate.toDateString()} at {selectedTime}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setShowCalendarModal(true)}
+                  disabled={!isFormComplete}
+                  className={`mt-5 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold shadow-lg transition-all ${
+                    isFormComplete
+                      ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 text-white hover:-translate-y-0.5 hover:shadow-xl"
+                      : "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
+                  }`}
+                  type="button"
                 >
-                  <option value="ear">Ear</option>
-                  <option value="nose">Nose</option>
-                  <option value="throat">Throat</option>
-                  <option value="aesthetics">Aesthetics</option>
-                </select>
+                  {isFormComplete
+                    ? "Select Appointment Date & Time"
+                    : "Complete patient details first"}
+                </button>
               </div>
             </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-900">Schedule Selection</h4>
+          ) : (
+            /* ─── CONFIRMATION SUCCESS SCREEN ─── */
+            <div className="space-y-6 p-6 md:p-8">
+              <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm">
+                {/* Checkmark & heading */}
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                    <Check className="h-8 w-8" />
+                  </div>
+                  <h2 className="mt-4 text-2xl font-bold text-slate-900">
+                    Appointment Confirmed!
+                  </h2>
                   <p className="text-sm text-slate-500">
-                    Pick a future date and available time slot.
+                    Your appointment has been scheduled.
                   </p>
                 </div>
 
-                {selectedDate && selectedTime && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
-                    <p className="font-semibold text-emerald-800">Selected schedule</p>
-                    <p className="mt-1 text-emerald-700">
-                      {selectedDate.toDateString()} at {selectedTime}
-                    </p>
+                {/* Details card */}
+                <div className="mt-6 rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <span className="font-medium text-slate-500">Date</span>
+                    <span className="font-semibold text-slate-900">
+                      {successData?.date.toDateString()}
+                    </span>
+                    <span className="font-medium text-slate-500">Time</span>
+                    <span className="font-semibold text-slate-900">{successData?.time}</span>
+                    <span className="font-medium text-slate-500">Duration</span>
+                    <span className="font-semibold text-slate-900">1 hour</span>
+                    <span className="font-medium text-slate-500">Service</span>
+                    <span className="font-semibold text-slate-900 capitalize">
+                      {successData?.service}
+                    </span>
+                    <span className="font-medium text-slate-500">Patient</span>
+                    <span className="font-semibold text-slate-900">{successData?.patient}</span>
+                    <span className="font-medium text-slate-500">Contact</span>
+                    <span className="font-semibold text-slate-900">{successData?.contact}</span>
                   </div>
-                )}
-              </div>
+                </div>
 
-              <button
-                onClick={() => setShowCalendarModal(true)}
-                disabled={!isFormComplete}
-                className={`mt-5 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold shadow-lg transition-all ${
-                  isFormComplete
-                    ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 text-white hover:-translate-y-0.5 hover:shadow-xl"
-                    : "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-                }`}
-                type="button"
-              >
-                {isFormComplete
-                  ? "Select Appointment Date & Time"
-                  : "Complete patient details first"}
-              </button>
+                {/* Doctor card */}
+                <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-lg font-bold">
+                    👨‍⚕️
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">Dr. Wade Warren</p>
+                    <p className="text-xs text-slate-500">ENT Specialist</p>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <button
+                    className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-medium text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => alert("🔍 Find similar appointments (demo)")}
+                  >
+                    Find similar
+                  </button>
+                  <button
+                    className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 font-medium text-white transition hover:bg-indigo-700"
+                    onClick={() => alert("👤 Redirect to Patient Portal (demo)")}
+                  >
+                    Patient Portal
+                  </button>
+                </div>
+
+                {/* Book another appointment button */}
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={handleBookAnother}
+                    className="text-sm font-medium text-indigo-600 hover:underline"
+                  >
+                    ← Book another appointment
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
+      {/* ─── CALENDAR MODAL ─── */}
       {showCalendarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]">
           <div className="max-h-[92vh] w-full max-w-7xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.28)]">
@@ -789,6 +900,7 @@ export default function UserAppointmentCalendar() {
         </div>
       )}
 
+      {/* ─── CONFIRM MODAL (pre‑booking review) ─── */}
       {showConfirmModal && isFormComplete && selectedDate && selectedTime && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]">
           <div className="mx-4 w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_rgba(15,23,42,0.25)]">
@@ -855,4 +967,4 @@ export default function UserAppointmentCalendar() {
       )}
     </div>
   );
-}
+} 

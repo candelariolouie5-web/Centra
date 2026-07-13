@@ -17,6 +17,11 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCcw,
+  Clock,
+  TrendingUp,
+  UserCheck,
+  UserX,
+  Activity,
 } from "lucide-react";
 
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "ACCEPTED" | "CANCELLED" | "COMPLETED" | string;
@@ -49,7 +54,7 @@ export default function PatientsPage() {
   const [medicalHistoryKey, setMedicalHistoryKey] = useState(0);
 
   type FilterKey = "ongoing" | "today" | "cancelled" | "completed";
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("ongoing");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("today"); // Changed from "ongoing" to "today"
 
   useEffect(() => {
     fetchPatients();
@@ -130,12 +135,14 @@ export default function PatientsPage() {
 
   const getAvatarColor = (name: string) => {
     const colors = [
-      "bg-cyan-500",
-      "bg-sky-500",
-      "bg-blue-500",
-      "bg-teal-500",
-      "bg-indigo-500",
-      "bg-emerald-500",
+      "bg-gradient-to-br from-cyan-400 to-cyan-600",
+      "bg-gradient-to-br from-sky-400 to-sky-600",
+      "bg-gradient-to-br from-blue-400 to-blue-600",
+      "bg-gradient-to-br from-teal-400 to-teal-600",
+      "bg-gradient-to-br from-indigo-400 to-indigo-600",
+      "bg-gradient-to-br from-emerald-400 to-emerald-600",
+      "bg-gradient-to-br from-rose-400 to-rose-600",
+      "bg-gradient-to-br from-amber-400 to-amber-600",
     ];
     return colors[name.charCodeAt(0) % colors.length];
   };
@@ -153,37 +160,59 @@ export default function PatientsPage() {
     }
   };
 
+  const getStatusBadge = (status?: string | null) => {
+    if (!status) return null;
+    switch (status) {
+      case "CONFIRMED":
+        return { color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" };
+      case "PENDING":
+        return { color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" };
+      case "CANCELLED":
+        return { color: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-500" };
+      case "COMPLETED":
+        return { color: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" };
+      default:
+        return { color: "bg-slate-50 text-slate-700 border-slate-200", dot: "bg-slate-500" };
+    }
+  };
+
   const totalPatients = patients.length;
   const shownFrom = filteredPatients.length === 0 ? 0 : indexOfFirstPatient + 1;
   const shownTo = Math.min(indexOfLastPatient, filteredPatients.length);
+  const todayDate = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)] p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/30 p-6">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="rounded-3xl border border-slate-200 bg-white/80 backdrop-blur-sm p-8 shadow-lg">
             <div className="animate-pulse space-y-4">
-              <div className="h-7 w-56 rounded bg-slate-200" />
-              <div className="h-4 w-80 rounded bg-slate-100" />
+              <div className="h-8 w-64 rounded-lg bg-slate-200" />
+              <div className="h-4 w-96 rounded-lg bg-slate-100" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {[1, 2, 3].map((item) => (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
               <div
                 key={item}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-6 shadow-lg"
               >
                 <div className="animate-pulse space-y-3">
-                  <div className="h-4 w-24 rounded bg-slate-200" />
-                  <div className="h-8 w-16 rounded bg-slate-100" />
+                  <div className="h-4 w-32 rounded bg-slate-200" />
+                  <div className="h-10 w-20 rounded bg-slate-100" />
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="rounded-[28px] border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <p className="text-slate-400">Loading patients...</p>
+          <div className="rounded-3xl border border-slate-200 bg-white/80 backdrop-blur-sm p-12 text-center shadow-lg">
+            <p className="text-slate-400 font-medium">Loading patients...</p>
           </div>
         </div>
       </div>
@@ -192,11 +221,11 @@ export default function PatientsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)] p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/30 p-6">
         <div className="mx-auto flex max-w-7xl items-center justify-center">
-          <div className="w-full max-w-lg rounded-[28px] border border-red-100 bg-white p-10 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-500">
-              <Trash2 className="h-6 w-6" />
+          <div className="w-full max-w-lg rounded-3xl border border-red-100 bg-white/80 backdrop-blur-sm p-10 text-center shadow-lg">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+              <Trash2 className="h-7 w-7" />
             </div>
             <h2 className="text-lg font-semibold text-slate-900">
               Something went wrong
@@ -204,7 +233,7 @@ export default function PatientsPage() {
             <p className="mt-2 text-sm text-red-500">{error}</p>
             <button
               onClick={fetchPatients}
-              className="mt-5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="mt-5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:shadow-xl"
             >
               Try Again
             </button>
@@ -215,11 +244,12 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)]">
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/30">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl shadow-sm">
         <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+              <Activity className="h-6 w-6 text-cyan-600" />
               Patient Management
             </h1>
             <p className="text-sm text-slate-500">
@@ -227,19 +257,15 @@ export default function PatientsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600 shadow-sm">
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 shadow-sm">
+              <CalendarDays className="h-4 w-4 text-cyan-600" />
+              {todayDate}
             </div>
 
             <button
               onClick={refreshPatient}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:from-cyan-700 hover:to-blue-700"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:from-cyan-700 hover:to-blue-700"
             >
               <RefreshCcw className="h-4 w-4" />
               Refresh
@@ -247,7 +273,7 @@ export default function PatientsPage() {
 
             <button
               onClick={() => setShowAddPatient(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:from-cyan-700 hover:to-blue-700"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:from-cyan-700 hover:to-blue-700"
             >
               <UserPlus className="h-4 w-4" />
               Add Patient
@@ -258,12 +284,13 @@ export default function PatientsPage() {
 
       <main className="p-6">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="overflow-hidden rounded-[28px] border border-cyan-100 bg-white shadow-[0_24px_60px_-28px_rgba(14,165,233,0.28)]">
+          {/* Hero Banner */}
+          <div className="overflow-hidden rounded-3xl border border-cyan-100 bg-white shadow-xl shadow-cyan-600/5">
             <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 px-6 py-8 text-white md:px-8">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.16),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.08),_transparent_28%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.15),_transparent_40%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.05),_transparent_40%)]" />
               <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold backdrop-blur">
                     <Users className="h-4 w-4" />
                     Centra Clinic Patient Overview
                   </div>
@@ -273,33 +300,32 @@ export default function PatientsPage() {
                   </h2>
 
                   <p className="mt-2 max-w-2xl text-sm text-cyan-50/90 md:text-base">
-                    Search, review, and manage registered patients with the same
-                    dashboard-style visual design.
+                    Search, review, and manage registered patients with quick access to their records and appointments.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur text-center">
                     <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
                       Total
                     </p>
-                    <p className="mt-1 text-lg font-bold">{totalPatients}</p>
+                    <p className="mt-1 text-2xl font-bold">{totalPatients}</p>
                   </div>
 
-                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur text-center">
                     <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
-                      Results
+                      Filtered
                     </p>
-                    <p className="mt-1 text-lg font-bold">
+                    <p className="mt-1 text-2xl font-bold">
                       {filteredPatients.length}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                  <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur text-center">
                     <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">
                       Page
                     </p>
-                    <p className="mt-1 text-lg font-bold">
+                    <p className="mt-1 text-2xl font-bold">
                       {filteredPatients.length === 0 ? 0 : currentPage}
                     </p>
                   </div>
@@ -308,68 +334,87 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-[24px] border border-cyan-100 bg-white p-5 shadow-sm">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="group rounded-2xl border border-cyan-100 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-600/5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-600">
                     Total Patients
                   </p>
-                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {totalPatients}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Total registered patient records
+                  <p className="mt-1 text-sm text-slate-500">
+                    Registered records
                   </p>
                 </div>
-
-                <div className="rounded-2xl bg-cyan-100 p-3 text-cyan-700">
+                <div className="rounded-2xl bg-cyan-100 p-3 text-cyan-700 group-hover:scale-110 transition-transform">
                   <Users className="h-5 w-5" />
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-blue-100 bg-white p-5 shadow-sm">
+            <div className="group rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Today's Patients
+                  </p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {todayCount}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Scheduled today
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700 group-hover:scale-110 transition-transform">
+                  <CalendarDays className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="group rounded-2xl border border-blue-100 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-600/5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
                     Search Results
                   </p>
-                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {filteredPatients.length}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Matching patients from your search
+                  <p className="mt-1 text-sm text-slate-500">
+                    Matching patients
                   </p>
                 </div>
-
-                <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
+                <div className="rounded-2xl bg-blue-100 p-3 text-blue-700 group-hover:scale-110 transition-transform">
                   <Search className="h-5 w-5" />
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
+            <div className="group rounded-2xl border border-violet-100 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-violet-600/5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
                     Current Page
                   </p>
-                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {filteredPatients.length === 0 ? 0 : currentPage}
                   </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Active page in patient directory
+                  <p className="mt-1 text-sm text-slate-500">
+                    of {totalPages || 1} pages
                   </p>
                 </div>
-
-                <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
-                  <CalendarDays className="h-5 w-5" />
+                <div className="rounded-2xl bg-violet-100 p-3 text-violet-700 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="h-5 w-5" />
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Search and Filter Section */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
@@ -390,21 +435,27 @@ export default function PatientsPage() {
                   setSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 shadow-sm outline-none transition-all focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100 focus:shadow-md"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            {/* Filters */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Appointment Filters
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Use filters to show patients based on their latest appointment status.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 text-cyan-700">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Appointment Filters
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Filter patients by appointment status
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -414,13 +465,13 @@ export default function PatientsPage() {
                       setActiveFilter("ongoing");
                       setCurrentPage(1);
                     }}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition border ${
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                       activeFilter === "ongoing"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <UserCheck className="h-4 w-4" />
                     Ongoing ({ongoingCount})
                   </button>
 
@@ -430,13 +481,13 @@ export default function PatientsPage() {
                       setActiveFilter("today");
                       setCurrentPage(1);
                     }}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition border ${
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                       activeFilter === "today"
-                        ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full bg-cyan-500" />
+                    <CalendarDays className="h-4 w-4" />
                     Today ({todayCount})
                   </button>
 
@@ -446,13 +497,13 @@ export default function PatientsPage() {
                       setActiveFilter("cancelled");
                       setCurrentPage(1);
                     }}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition border ${
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                       activeFilter === "cancelled"
-                        ? "border-red-200 bg-red-50 text-red-700"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                    <UserX className="h-4 w-4" />
                     Cancelled ({cancelledCount})
                   </button>
 
@@ -462,127 +513,144 @@ export default function PatientsPage() {
                       setActiveFilter("completed");
                       setCurrentPage(1);
                     }}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition border ${
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                       activeFilter === "completed"
-                        ? "border-blue-200 bg-blue-50 text-blue-700"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                    <CheckCircle className="h-4 w-4" />
                     Completed ({completedCount})
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            {/* Patients Table */}
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-xs uppercase tracking-[0.18em] text-slate-500">
                     <tr>
                       <Th className="py-4">Patient</Th>
                       <Th>Email</Th>
                       <Th>Registered Date</Th>
+                      <Th>Status</Th>
                       <Th className="pr-6 text-right">Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentPatients.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-16 text-center">
+                        <td colSpan={5} className="py-16 text-center">
                           <div className="mx-auto flex max-w-sm flex-col items-center">
-                            <div className="mb-4 rounded-2xl bg-slate-100 p-4 text-slate-400">
-                              <Users className="h-6 w-6" />
+                            <div className="mb-4 rounded-2xl bg-slate-100 p-5 text-slate-400">
+                              <Users className="h-8 w-8" />
                             </div>
-                            <p className="text-base font-medium text-slate-700">
+                            <p className="text-base font-semibold text-slate-700">
                               No patients found
                             </p>
                             <p className="mt-1 text-sm text-slate-400">
-                              Try a different search keyword or add a new patient.
+                              {activeFilter === "today" 
+                                ? "There are no patients scheduled for today." 
+                                : "Try a different search keyword or add a new patient."}
                             </p>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      currentPatients.map((p) => (
-                        <tr key={p.id} className="transition hover:bg-cyan-50/40">
-                          <Td className="py-4">
-                            <div className="flex items-center gap-3">
-                              {p.image ? (
-                                <img
-                                  src={p.image}
-                                  alt={p.name || "Patient"}
-                                  className="h-11 w-11 rounded-full border border-slate-200 object-cover shadow-sm"
-                                />
-                              ) : (
-                                <div
-                                  className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm ${getAvatarColor(
-                                    p.name || "A"
-                                  )}`}
-                                >
-                                  {p.name?.charAt(0)?.toUpperCase() || "A"}
+                      currentPatients.map((p) => {
+                        const statusBadge = getStatusBadge(p.latestAppointmentStatus);
+                        return (
+                          <tr key={p.id} className="group transition-all hover:bg-cyan-50/60 hover:shadow-inner">
+                            <Td className="py-4">
+                              <div className="flex items-center gap-3">
+                                {p.image ? (
+                                  <img
+                                    src={p.image}
+                                    alt={p.name || "Patient"}
+                                    className="h-11 w-11 rounded-full border-2 border-slate-200 object-cover shadow-sm group-hover:border-cyan-400 transition-colors"
+                                  />
+                                ) : (
+                                  <div
+                                    className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-md ${getAvatarColor(
+                                      p.name || "A"
+                                    )}`}
+                                  >
+                                    {p.name?.charAt(0)?.toUpperCase() || "A"}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-semibold text-slate-800 group-hover:text-cyan-700 transition-colors">
+                                    {p.name || "N/A"}
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    ID: {p.id.slice(0, 8)}
+                                  </p>
                                 </div>
-                              )}
-                              <div>
-                                <p className="font-semibold text-slate-800">
-                                  {p.name || "N/A"}
-                                </p>
-                                <p className="text-xs text-slate-400">
-                                  Patient ID: {p.id.slice(0, 8)}
-                                </p>
                               </div>
-                            </div>
-                          </Td>
-                          <Td>
-                            <span className="text-slate-600">
-                              {p.email || "No email"}
-                            </span>
-                          </Td>
-                          <Td>
-                            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                              {new Date(p.createdAt).toLocaleDateString()}
-                            </span>
-                          </Td>
-                          <Td>
-                            <div className="flex justify-end gap-2 pr-4">
-                              <button
-                                title="View Patient"
-                                onClick={() => {
-                                  setSelected(p);
-                                  setTab("info");
-                                  setShowDetails(true);
-                                }}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-600"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                title="SOAP Note"
-                                onClick={() => {
-                                  setSelected(p);
-                                  setShowSoap(true);
-                                }}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600"
-                              >
-                                <FileText className="h-4 w-4" />
-                              </button>
-                              <button
-                                title="Delete"
-                                onClick={() => deletePatient(p)}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-600 transition hover:bg-red-100"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </Td>
-                        </tr>
-                      ))
+                            </Td>
+                            <Td>
+                              <span className="text-slate-600">
+                                {p.email || "No email"}
+                              </span>
+                            </Td>
+                            <Td>
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+                                <CalendarDays className="h-3 w-3" />
+                                {new Date(p.createdAt).toLocaleDateString()}
+                              </span>
+                            </Td>
+                            <Td>
+                              {statusBadge && (
+                                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${statusBadge.color}`}>
+                                  <span className={`w-2 h-2 rounded-full ${statusBadge.dot}`} />
+                                  {p.latestAppointmentStatus}
+                                </span>
+                              )}
+                            </Td>
+                            <Td>
+                              <div className="flex justify-end gap-2 pr-4">
+                                <button
+                                  title="View Patient"
+                                  onClick={() => {
+                                    setSelected(p);
+                                    setTab("info");
+                                    setShowDetails(true);
+                                  }}
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-all hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-600 hover:shadow-md"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  title="SOAP Note"
+                                  onClick={() => {
+                                    setSelected(p);
+                                    setShowSoap(true);
+                                  }}
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-all hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-600 hover:shadow-md"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </button>
+                                <button
+                                  title="Delete"
+                                  onClick={() => deletePatient(p)}
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-600 transition-all hover:bg-red-100 hover:shadow-md"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </Td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
+            {/* Pagination */}
             {filteredPatients.length > 0 && (
               <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
@@ -601,21 +669,21 @@ export default function PatientsPage() {
                   <button
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-all hover:bg-white hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => {
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                     const page = i + 1;
                     return (
                       <button
                         key={page}
                         onClick={() => goToPage(page)}
-                        className={`min-w-[40px] rounded-xl px-3 py-2 text-sm font-medium transition ${
+                        className={`min-w-[40px] rounded-xl px-3 py-2 text-sm font-medium transition-all ${
                           currentPage === page
-                            ? "bg-cyan-600 text-white shadow-sm"
-                            : "text-slate-600 hover:bg-white"
+                            ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md"
+                            : "text-slate-600 hover:bg-white hover:shadow-sm"
                         }`}
                       >
                         {page}
@@ -623,55 +691,90 @@ export default function PatientsPage() {
                     );
                   })}
 
+                  {totalPages > 5 && (
+                    <>
+                      <span className="px-1 text-slate-400">...</span>
+                      <button
+                        onClick={() => goToPage(totalPages)}
+                        className={`min-w-[40px] rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                          currentPage === totalPages
+                            ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md"
+                            : "text-slate-600 hover:bg-white hover:shadow-sm"
+                        }`}
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
+
                   <button
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-all hover:bg-white hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
             )}
-
-            {/* Patient Details Modal - No appointments prop needed, modal fetches its own data */}
-            <PatientDetailsModal
-              key={`details-${medicalHistoryKey}`}
-              open={showDetails}
-              onClose={() => setShowDetails(false)}
-              patient={selected}
-              tab={tab}
-              setTab={setTab}
-              onCreateMedicalHistory={() => setShowMedicalHistoryModal(true)}
-              onRefreshMedicalHistory={handleMedicalHistorySuccess}
-              onRefreshPatient={refreshPatient}
-            />
-
-            <SoapNoteModal
-              open={showSoap}
-              onClose={() => {
-                setShowSoap(false);
-                fetchPatients();
-              }}
-              patient={selected}
-            />
-
-            <AddPatientModal
-              open={showAddPatient}
-              onClose={() => setShowAddPatient(false)}
-              onSuccess={fetchPatients}
-            />
-
-            <MedicalHistoryModal
-              key={`medical-history-${medicalHistoryKey}`}
-              open={showMedicalHistoryModal}
-              onClose={() => setShowMedicalHistoryModal(false)}
-              patientId={selected?.id}
-              onSuccess={handleMedicalHistorySuccess}
-            />
           </div>
         </div>
       </main>
+
+      {/* Modals */}
+      <PatientDetailsModal
+        key={`details-${medicalHistoryKey}`}
+        open={showDetails}
+        onClose={() => setShowDetails(false)}
+        patient={selected}
+        tab={tab}
+        setTab={setTab}
+        onCreateMedicalHistory={() => setShowMedicalHistoryModal(true)}
+        onRefreshMedicalHistory={handleMedicalHistorySuccess}
+        onRefreshPatient={refreshPatient}
+      />
+
+      <SoapNoteModal
+        open={showSoap}
+        onClose={() => {
+          setShowSoap(false);
+          fetchPatients();
+        }}
+        patient={selected}
+      />
+
+      <AddPatientModal
+        open={showAddPatient}
+        onClose={() => setShowAddPatient(false)}
+        onSuccess={fetchPatients}
+      />
+
+      <MedicalHistoryModal
+        key={`medical-history-${medicalHistoryKey}`}
+        open={showMedicalHistoryModal}
+        onClose={() => setShowMedicalHistoryModal(false)}
+        patientId={selected?.id}
+        onSuccess={handleMedicalHistorySuccess}
+      />
     </div>
   );
 }
+
+// Missing CheckCircle import
+const CheckCircle = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
