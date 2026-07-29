@@ -13,7 +13,11 @@ import {
   XCircle,
   RefreshCw,
   ChevronRight,
-  Award
+  Award,
+  LogOut,
+  Settings,
+  Home,
+  MoreVertical
 } from "lucide-react";
 
 // --- Type definitions (unchanged) ---
@@ -115,18 +119,18 @@ function statusLabel(status: SecretaryStatus) {
 
 function statusClass(status: SecretaryStatus) {
   const classes: Record<SecretaryStatus, string> = {
-    PENDING: "bg-slate-100 text-slate-700 border-slate-200",
-    VERIFIED: "bg-cyan-50 text-cyan-700 border-cyan-200",
-    CHECKED_IN: "bg-blue-50 text-blue-700 border-blue-200",
-    VITALS_RECORDED: "bg-amber-50 text-amber-700 border-amber-200",
-    READY_FOR_DOCTOR: "bg-purple-50 text-purple-700 border-purple-200",
-    COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    SCHEDULED_FOR_PROCEDURE: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    NO_SHOW: "bg-rose-50 text-rose-700 border-rose-200",
-    CANCELLED: "bg-red-50 text-red-700 border-red-200",
-    RESCHEDULED: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    PENDING: "bg-slate-50 text-slate-600 border-slate-200",
+    VERIFIED: "bg-cyan-50 text-cyan-600 border-cyan-200",
+    CHECKED_IN: "bg-blue-50 text-blue-600 border-blue-200",
+    VITALS_RECORDED: "bg-amber-50 text-amber-600 border-amber-200",
+    READY_FOR_DOCTOR: "bg-purple-50 text-purple-600 border-purple-200",
+    COMPLETED: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    SCHEDULED_FOR_PROCEDURE: "bg-indigo-50 text-indigo-600 border-indigo-200",
+    NO_SHOW: "bg-rose-50 text-rose-600 border-rose-200",
+    CANCELLED: "bg-red-50 text-red-600 border-red-200",
+    RESCHEDULED: "bg-yellow-50 text-yellow-600 border-yellow-200",
   };
-  return classes[status] || "bg-slate-100 text-slate-700 border-slate-200";
+  return classes[status] || "bg-slate-50 text-slate-600 border-slate-200";
 }
 
 function statusDotClass(status: SecretaryStatus) {
@@ -362,96 +366,104 @@ export default function SecretaryDashboard() {
   // --- Render ---
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-emerald-50/40 text-slate-900">
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          {/* Header Card */}
-          <section className="relative mb-8 overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/70 shadow-2xl shadow-emerald-900/5 backdrop-blur-xl transition-all hover:shadow-emerald-900/10">
-            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-300/30 blur-3xl" />
-            <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-cyan-300/20 blur-3xl" />
-            <div className="relative p-8 sm:p-10">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="mb-4 flex items-center gap-2">
-                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50/80 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-700 backdrop-blur-sm">
-                      <Award className="mr-1.5 h-3.5 w-3.5" /> Secretary Workspace
-                    </span>
-                  </div>
-                  <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                    Appointment Queue
-                  </h1>
-                  <p className="mt-2 max-w-2xl text-base text-slate-600">
-                    Verify, check-in, record vitals, and manage patient flow with ease.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white/80 px-5 py-3 shadow-sm backdrop-blur-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Today
-                    </p>
-                    <p className="text-sm font-bold text-slate-800">{todayText}</p>
-                  </div>
-                  <button
-                    onClick={loadAppointments}
-                    className="group inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-1 hover:bg-emerald-700 hover:shadow-emerald-600/40"
-                  >
-                    <RefreshCw className="h-4 w-4 transition-transform group-hover:rotate-180" />
-                    Refresh
-                  </button>
-                </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 text-slate-800">
+        {/* Top Navigation Bar – simplified, no duplicate nav */}
+        <header className="sticky top-0 z-40 border-b border-white/50 bg-white/80 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                <span className="text-base font-bold">CF</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold tracking-tight text-slate-900">ClinicFlow</span>
+                <span className="hidden text-sm font-medium text-emerald-600 sm:inline">|</span>
+                <span className="hidden text-sm font-medium text-slate-500 sm:inline">Secretary Portal</span>
               </div>
             </div>
-          </section>
+            {/* Utility actions only – no Dashboard/Settings links */}
+            <div className="flex items-center gap-3">
+              <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
+                <MoreVertical className="h-5 w-5" />
+              </button>
+              <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
+                <LogOut className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          {/* Page Header */}
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Appointment Queue</h1>
+              <p className="text-sm text-slate-500">Verify, check‑in, record vitals, and manage patient flow with ease.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-sm shadow-sm">
+                <span className="font-medium text-slate-500">Today</span>
+                <span className="ml-2 font-semibold text-slate-800">{todayText}</span>
+              </div>
+              <button
+                onClick={loadAppointments}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+            </div>
+          </div>
 
           {/* Stats Grid */}
-          <section className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
-            <StatCard icon={<Clock className="h-5 w-5" />} label="Total" value={stats.total} color="emerald" />
-            <StatCard icon={<User className="h-5 w-5" />} label="Pending" value={stats.pending} color="slate" />
-            <StatCard icon={<CheckCircle className="h-5 w-5" />} label="Checked In" value={stats.checkedIn} color="blue" />
-            <StatCard icon={<Activity className="h-5 w-5" />} label="Vitals" value={stats.vitals} color="amber" />
-            <StatCard icon={<Stethoscope className="h-5 w-5" />} label="Ready" value={stats.ready} color="purple" />
-            <StatCard icon={<Clipboard className="h-5 w-5" />} label="Completed" value={stats.completed} color="emerald" />
-            <StatCard icon={<Calendar className="h-5 w-5" />} label="Procedure" value={stats.procedure} color="indigo" />
-            <StatCard icon={<XCircle className="h-5 w-5" />} label="Cancelled" value={stats.cancelled} color="rose" />
+          <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+            <StatCard icon={<Clock className="h-4 w-4" />} label="Total" value={stats.total} color="emerald" />
+            <StatCard icon={<User className="h-4 w-4" />} label="Pending" value={stats.pending} color="slate" />
+            <StatCard icon={<CheckCircle className="h-4 w-4" />} label="Checked In" value={stats.checkedIn} color="blue" />
+            <StatCard icon={<Activity className="h-4 w-4" />} label="Vitals" value={stats.vitals} color="amber" />
+            <StatCard icon={<Stethoscope className="h-4 w-4" />} label="Ready" value={stats.ready} color="purple" />
+            <StatCard icon={<Clipboard className="h-4 w-4" />} label="Completed" value={stats.completed} color="emerald" />
+            <StatCard icon={<Calendar className="h-4 w-4" />} label="Procedure" value={stats.procedure} color="indigo" />
+            <StatCard icon={<XCircle className="h-4 w-4" />} label="Cancelled" value={stats.cancelled} color="rose" />
           </section>
 
           {/* Appointment List */}
-          <section className="rounded-[2.5rem] border border-white/60 bg-white/80 shadow-2xl shadow-slate-900/5 backdrop-blur-xl transition-all hover:shadow-slate-900/10">
-            <div className="flex flex-col justify-between gap-4 border-b border-slate-200/60 px-6 py-5 md:flex-row md:items-center">
+          <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white/80 shadow-sm backdrop-blur-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-200/60 px-4 py-4 sm:flex-row sm:items-center">
               <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950">Patients</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Patients</h2>
                 <p className="text-sm text-slate-500">Select an action to move each patient forward.</p>
               </div>
-              <div className="rounded-2xl bg-slate-100/70 px-5 py-2 text-sm font-bold text-slate-600 backdrop-blur-sm">
-                {appointments.length} appointment{appointments.length === 1 ? "" : "s"}
+              <div className="rounded-xl bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-600">
+                {appointments.length} appointment{appointments.length !== 1 ? "s" : ""}
               </div>
             </div>
 
             {loading ? (
               <div className="flex flex-col items-center p-12">
-                <div className="relative h-12 w-12">
-                  <div className="absolute inset-0 rounded-full border-4 border-emerald-200" />
+                <div className="relative h-10 w-10">
+                  <div className="absolute inset-0 rounded-full border-4 border-emerald-100" />
                   <div className="absolute inset-0 animate-spin rounded-full border-4 border-t-emerald-600" />
                 </div>
-                <p className="mt-4 text-sm font-medium text-slate-500">Loading appointments...</p>
+                <p className="mt-3 text-sm font-medium text-slate-500">Loading appointments...</p>
               </div>
             ) : appointments.length === 0 ? (
               <div className="flex flex-col items-center p-12">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-3xl">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
                   📋
                 </div>
-                <p className="text-lg font-bold text-slate-800">No appointments found.</p>
-                <p className="mt-1 text-sm text-slate-500">New appointments will appear here once available.</p>
+                <p className="text-base font-semibold text-slate-800">No appointments found.</p>
+                <p className="text-sm text-slate-500">New appointments will appear here once available.</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100/80">
+              <div className="divide-y divide-slate-100">
                 {appointments.map((appointment) => (
                   <div
                     key={appointment.id}
-                    className="group grid gap-4 px-6 py-5 transition hover:bg-slate-50/60 lg:grid-cols-[1.4fr_1fr_0.8fr_0.8fr_1.8fr]"
+                    className="grid gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_1.6fr]"
                   >
+                    {/* Patient */}
                     <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-sm font-black text-emerald-700 shadow-inner">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-sm font-semibold text-emerald-700">
                         {appointment.fullName
                           ?.split(" ")
                           .map((part) => part[0])
@@ -460,52 +472,61 @@ export default function SecretaryDashboard() {
                           .toUpperCase() || "PT"}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-black text-slate-950">{appointment.fullName}</p>
+                        <p className="truncate font-semibold text-slate-900">{appointment.fullName}</p>
                         <p className="truncate text-xs text-slate-500">{appointment.email}</p>
                         <p className="text-xs text-slate-400">{appointment.contactNumber || "No contact"}</p>
                       </div>
                     </div>
 
+                    {/* Service */}
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Service</p>
-                      <p className="mt-1 font-semibold text-slate-800">{appointment.serviceType}</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Service</p>
+                      <p className="mt-0.5 font-medium text-slate-800">{appointment.serviceType}</p>
                       {appointment.chiefComplaint && (
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                          Complaint: {appointment.chiefComplaint}
+                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
+                          {appointment.chiefComplaint}
                         </p>
                       )}
                     </div>
 
+                    {/* Date */}
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Date</p>
-                      <p className="mt-1 font-semibold text-slate-800">{formatDate(appointment.appointmentDate)}</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Date</p>
+                      <p className="mt-0.5 font-medium text-slate-800">{formatDate(appointment.appointmentDate)}</p>
                     </div>
 
+                    {/* Time & Status */}
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Time</p>
-                      <p className="mt-1 font-semibold text-slate-800">{appointment.appointmentTime}</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Time</p>
+                      <p className="mt-0.5 font-medium text-slate-800">{appointment.appointmentTime}</p>
                       <span
-                        className={`mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${statusClass(
+                        className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${statusClass(
                           appointment.secretaryStatus
                         )}`}
                       >
                         <span
-                          className={`h-2 w-2 rounded-full ${statusDotClass(appointment.secretaryStatus)} animate-pulse`}
+                          className={`h-1.5 w-1.5 rounded-full ${statusDotClass(appointment.secretaryStatus)}`}
                         />
                         {statusLabel(appointment.secretaryStatus)}
                       </span>
                     </div>
 
+                    {/* Actions */}
                     <div>
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Actions</p>
-                      <div className="flex flex-wrap gap-2">
-                        <ActionButton onClick={() => openModal("verify", appointment)}>Verify</ActionButton>
-                        <ActionButton onClick={() => submitCheckIn(appointment)}>Check‑In</ActionButton>
-                        <ActionButton onClick={() => openModal("vitals", appointment)}>Vitals</ActionButton>
-                        <ActionButton onClick={() => submitComplete(appointment)}>Complete</ActionButton>
-                        <ActionButton onClick={() => openReschedule(appointment)}>Secretary</ActionButton>
-                        <ActionButton onClick={() => openReschedule(appointment)}>Reschedule</ActionButton>
-                        <DangerButton onClick={() => submitCancel(appointment)}>Cancel</DangerButton>
+                      <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-slate-400">Actions</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <ActionButton variant="amber" onClick={() => openModal("vitals", appointment)}>
+                          Vitals
+                        </ActionButton>
+                        <ActionButton variant="emerald" onClick={() => submitComplete(appointment)}>
+                          Complete
+                        </ActionButton>
+                        <ActionButton variant="blue" onClick={() => openReschedule(appointment)}>
+                          Reschedule
+                        </ActionButton>
+                        <DangerButton onClick={() => submitCancel(appointment)}>
+                          Cancel
+                        </DangerButton>
                       </div>
                     </div>
                   </div>
@@ -517,7 +538,7 @@ export default function SecretaryDashboard() {
 
         {/* Toast */}
         {toast && (
-          <div className="fixed bottom-6 right-6 z-50 animate-slide-up rounded-2xl bg-slate-900/95 px-6 py-4 text-sm font-bold text-white shadow-2xl backdrop-blur-sm">
+          <div className="fixed bottom-6 right-6 z-50 animate-slide-up rounded-2xl bg-slate-900/95 px-5 py-3 text-sm font-medium text-white shadow-lg backdrop-blur-sm">
             {toast}
           </div>
         )}
@@ -526,7 +547,7 @@ export default function SecretaryDashboard() {
         {activeModal && selectedAppointment && (
           <Modal title={modalTitle(activeModal)} onClose={closeModal}>
             {activeModal === "verify" && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <Input
                   label="Full Name"
                   value={verifyForm.fullName}
@@ -554,7 +575,7 @@ export default function SecretaryDashboard() {
             )}
 
             {activeModal === "vitals" && (
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 <Input label="Height" value={vitalsForm.height} onChange={(v) => setVitalsForm((p) => ({ ...p, height: v }))} />
                 <Input label="Weight" value={vitalsForm.weight} onChange={(v) => setVitalsForm((p) => ({ ...p, weight: v }))} />
                 <Input
@@ -616,7 +637,7 @@ export default function SecretaryDashboard() {
   );
 }
 
-// --- Reusable UI Components (enhanced) ---
+// --- Reusable UI Components (refined) ---
 
 function StatCard({
   icon,
@@ -639,14 +660,12 @@ function StatCard({
     rose: "bg-rose-50 text-rose-600 border-rose-200",
   };
   return (
-    <div className="group rounded-3xl border border-white/70 bg-white/80 p-5 shadow-lg shadow-slate-900/5 backdrop-blur-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/10">
+    <div className="group rounded-2xl border border-slate-200/60 bg-white/70 p-3 shadow-sm transition-all hover:shadow-md">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</span>
-        <span className={`rounded-xl border p-1.5 ${colorClasses[color]}`}>{icon}</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</span>
+        <span className={`rounded-lg border p-1.5 ${colorClasses[color]}`}>{icon}</span>
       </div>
-      <div className="mt-3 text-3xl font-black tracking-tight text-slate-950 transition-all group-hover:scale-105">
-        {value}
-      </div>
+      <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{value}</div>
     </div>
   );
 }
@@ -654,14 +673,22 @@ function StatCard({
 function ActionButton({
   children,
   onClick,
+  variant = "default",
 }: {
   children: React.ReactNode;
   onClick: () => void;
+  variant?: "default" | "amber" | "emerald" | "blue";
 }) {
+  const variantClasses = {
+    default: "border-slate-200 bg-white/70 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700",
+    amber: "border-amber-200 bg-amber-50/70 text-amber-700 hover:bg-amber-100",
+    emerald: "border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100",
+    blue: "border-blue-200 bg-blue-50/70 text-blue-700 hover:bg-blue-100",
+  };
   return (
     <button
       onClick={onClick}
-      className="rounded-xl border border-slate-200 bg-white/70 px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-emerald-100"
+      className={`rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition ${variantClasses[variant]}`}
     >
       {children}
     </button>
@@ -678,7 +705,7 @@ function DangerButton({
   return (
     <button
       onClick={onClick}
-      className="rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2 text-xs font-bold text-rose-700 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-rose-200"
+      className="rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-sm transition hover:bg-rose-100"
     >
       {children}
     </button>
@@ -698,7 +725,7 @@ function SubmitButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-0.5 hover:shadow-emerald-600/40 disabled:cursor-not-allowed disabled:opacity-60"
+      className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {disabled ? "Saving..." : children}
     </button>
@@ -715,16 +742,16 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm animate-fade-in">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] border border-white/60 bg-white/90 shadow-2xl backdrop-blur-xl animate-scale-in">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/60 bg-white/80 px-6 py-5 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm animate-fade-in">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/60 bg-white/95 shadow-xl backdrop-blur-sm animate-scale-in">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/60 bg-white/80 px-6 py-4 backdrop-blur-sm">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Secretary Action</p>
-            <h2 className="text-xl font-black tracking-tight text-slate-950">{title}</h2>
+            <p className="text-xs font-medium uppercase tracking-wider text-emerald-600">Secretary Action</p>
+            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           </div>
           <button
             onClick={onClose}
-            className="rounded-2xl bg-slate-100/70 px-4 py-2 text-sm font-bold text-slate-600 backdrop-blur-sm transition hover:bg-slate-200"
+            className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
           >
             Close
           </button>
@@ -748,13 +775,13 @@ function Input({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-bold text-slate-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       <input
         type={type}
         value={value}
         min={type === "date" ? getTodayDateInput() : undefined}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100/50"
+        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
       />
     </label>
   );
@@ -771,12 +798,12 @@ function Textarea({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-bold text-slate-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={4}
-        className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100/50"
+        rows={3}
+        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
       />
     </label>
   );

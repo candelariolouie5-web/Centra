@@ -546,6 +546,62 @@ const SoapNoteModal = ({
 
   if (!open || !patient) return null;
 
+  // ===================================================================
+  // 🔥 HANDLER PARA SA CLINICAL FINDINGS (mula sa 3D modal)
+  // ===================================================================
+  const handleSaveFinding = async (data: {
+    diagnosis: string;
+    anatomy: string;
+    notes: string;
+  }) => {
+    console.log("🔵 handleSaveFinding called with:", data);
+    console.log("🔵 patient.id:", patient.id);
+
+    try {
+      // Check if patient has a valid ID
+      if (!patient.id || patient.id === "temp") {
+        console.warn("❌ Clinical finding not saved - missing patient ID", data);
+        alert("Cannot save clinical finding: Patient ID is missing. Please ensure the patient has a valid ID.");
+        return;
+      }
+
+      const payload = {
+        patientId: patient.id,
+        anatomy: data.anatomy,
+        diagnosis: data.diagnosis,
+        impression: data.notes,
+      };
+      console.log("📤 Sending payload to API:", payload);
+
+      // 1. I-save sa clinical_findings database
+      const res = await fetch("/api/clinical-findings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("📥 API Response status:", res.status);
+
+      if (!res.ok) {
+        const err = await safeJson(res);
+        console.error("❌ Failed to save clinical finding:", err?.error || res.statusText);
+        alert(`Failed to save clinical finding: ${err?.error || "Unknown error"}`);
+        return;
+      }
+
+      const result = await res.json();
+      console.log("✅ Clinical finding saved successfully:", result);
+      alert("✅ Clinical finding saved successfully!");
+
+      // 2. I-update pa rin ang diagnosis field gaya ng dati
+      const newEntry = `${data.diagnosis} (${data.anatomy}) – ${data.notes}`;
+      setDiagnosis((prev) => (prev ? `${prev}; ${newEntry}` : newEntry));
+    } catch (error) {
+      console.error("🔥 Error saving clinical finding:", error);
+      alert("Network error - please check connection and try again");
+    }
+  };
+
   const handleAddOrUpdatePrescription = (rx: Prescription) => {
     if (editingIndex !== null) {
       setPrescriptions((prev: Prescription[]) =>
@@ -1370,9 +1426,11 @@ const SoapNoteModal = ({
           open={open3DModal}
           onClose={() => setOpen3DModal(false)}
           patientId={patient.id || "temp"}
-          onSaveFinding={(text) =>
-            setDiagnosis((prev) => (prev ? `${prev}; ${text}` : text))
-          }
+          onSaveFinding={(data) => {
+            console.log("📝 onSaveFinding called from HeadTemplateModal with:", data);
+            console.log("🔑 patient.id:", patient.id);
+            handleSaveFinding(data);
+          }}
           onExport={handleExportPDF}
           onSaveDiagnostic={handleSaveDiagnostic}
         />

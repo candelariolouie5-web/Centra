@@ -22,10 +22,6 @@ function isValidPHMobile(value: string) {
 
 /* ===============================
    SHARED → CREATE APPOINTMENT (Users/Staff/Clinical/Soap)
-   Exact Account Assignment:
-   1st booking = ADMIN
-   2nd booking = DOCTOR
-   3rd booking = FULL
 ================================ */
 export async function POST(request: NextRequest) {
   try {
@@ -65,6 +61,7 @@ export async function POST(request: NextRequest) {
       contactNumber,
       email: bodyEmail,
       room,
+      gender,
     } = body;
 
     const source = normalizedSource ?? (isStaffSession ? "staff" : "user");
@@ -86,6 +83,16 @@ export async function POST(request: NextRequest) {
     let finalAge: number | undefined;
     let finalContactNumber: string | undefined;
 
+    const parsedAge = age ? parseInt(String(age), 10) : undefined;
+    
+    // ✅ AGE VALIDATION: Must be between 1 and 999
+    if (parsedAge !== undefined && (isNaN(parsedAge) || parsedAge <= 0 || parsedAge > 999)) {
+      return NextResponse.json(
+        { error: "Invalid age (must be between 1 and 999)" },
+        { status: 400 }
+      );
+    }
+
     if (patientId) {
       const patient = await prisma.patient.findUnique({
         where: { id: patientId },
@@ -95,6 +102,8 @@ export async function POST(request: NextRequest) {
           email: true,
           age: true,
           phone: true,
+          gender: true,
+          address: true,
         },
       });
 
@@ -106,23 +115,55 @@ export async function POST(request: NextRequest) {
       const incomingPhone = sanitizedContactNumber || undefined;
       const mergedPhone = incomingPhone || patientPhone;
 
-      // 🔥 FIX: Update the patient's phone if a new one is provided
+      const updateData: any = {};
+      
+      if (name && name.trim() !== patient.name) {
+        updateData.name = name.trim();
+      }
+      
+      if (bodyEmail && bodyEmail.trim() !== patient.email) {
+        updateData.email = bodyEmail.trim();
+      }
+      
+      if (parsedAge !== undefined && parsedAge !== patient.age) {
+        updateData.age = parsedAge;
+        console.log(`📝 Updating age from ${patient.age} to ${parsedAge}`);
+      }
+      
       if (incomingPhone && incomingPhone !== patient.phone) {
-        await prisma.patient.update({
+        updateData.phone = incomingPhone;
+        console.log(`📝 Updating phone from ${patient.phone} to ${incomingPhone}`);
+      }
+
+      if (gender && gender.trim() !== patient.gender) {
+        updateData.gender = gender.trim();
+        console.log(`📝 Updating gender from ${patient.gender} to ${gender.trim()}`);
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        const updatedPatient = await prisma.patient.update({
           where: { id: patient.id },
-          data: { phone: incomingPhone },
+          data: updateData,
         });
-        console.log("📝 Updated patient phone from:", patient.phone, "to:", incomingPhone);
+        console.log(`✅ Auto-synced patient ${patient.id} with:`, updateData);
+        
+        finalFullName = updateData.name || patient.name || "Patient";
+        finalEmail = updateData.email || patient.email || "";
+        finalAge = updateData.age ?? patient.age ?? undefined;
+        finalContactNumber = updateData.phone || mergedPhone;
+      } else {
+        finalFullName = name || patient.name || "Patient";
+        finalEmail = bodyEmail || patient.email || "";
+        finalAge = parsedAge ?? patient.age ?? undefined;
+        finalContactNumber = mergedPhone;
       }
 
       finalPatientId = patient.id;
       finalUserId = null;
-      finalFullName = name || patient.name || "Patient";
-      finalEmail = bodyEmail || patient.email || "";
-      finalAge = age ? parseInt(String(age), 10) : patient.age ?? undefined;
-      finalContactNumber = mergedPhone;
+      
+      console.log(`📝 Final values - Name: ${finalFullName}, Age: ${finalAge}, Phone: ${finalContactNumber}`);
+
     } else {
-      // No patientId provided - create or find patient
       if (!name || !sanitizedContactNumber) {
         return NextResponse.json(
           { error: "name, contactNumber required for self-booking" },
@@ -139,48 +180,44 @@ export async function POST(request: NextRequest) {
 
       const safeEmail = session.user.email || bodyEmail || "";
 
-      // 🔥 FIX: Better patient lookup - check by email AND phone
       let patient = await prisma.patient.findFirst({
         where: {
           OR: [
-            {
-              email: safeEmail,
-            },
-            {
-              phone: sanitizedContactNumber,
-            },
-            {
-              name: name,
-            },
+            { email: safeEmail },
+            { phone: sanitizedContactNumber },
+            { name: name },
           ],
         },
       });
 
       if (!patient) {
-        // Create new patient with phone number
         patient = await prisma.patient.create({
           data: {
-            name: name,
+            name: name.trim(),
             email: safeEmail || undefined,
-            age: age ? parseInt(String(age), 10) : undefined,
-            phone: sanitizedContactNumber, // 🔥 SAVE PHONE NUMBER
+            age: parsedAge,
+            phone: sanitizedContactNumber,
+            gender: gender?.trim() || undefined,
           },
         });
-        console.log("📝 New patient created with phone:", sanitizedContactNumber);
+        console.log(`📝 New patient created with name: ${name}, age: ${parsedAge}, phone: ${sanitizedContactNumber}, gender: ${gender || 'not provided'}`);
       } else {
-        // 🔥 FIX: Update existing patient with phone number if missing
         const updateData: any = {};
+        
         if (patient.phone !== sanitizedContactNumber) {
           updateData.phone = sanitizedContactNumber;
         }
-        if (patient.name !== name) {
-          updateData.name = name;
+        if (patient.name !== name.trim()) {
+          updateData.name = name.trim();
         }
-        if (patient.age !== (age ? parseInt(String(age), 10) : undefined)) {
-          updateData.age = age ? parseInt(String(age), 10) : undefined;
+        if (parsedAge !== undefined && patient.age !== parsedAge) {
+          updateData.age = parsedAge;
         }
         if (!patient.email && safeEmail) {
           updateData.email = safeEmail;
+        }
+        if (gender && gender.trim() !== patient.gender) {
+          updateData.gender = gender.trim();
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -188,20 +225,23 @@ export async function POST(request: NextRequest) {
             where: { id: patient.id },
             data: updateData,
           });
-          console.log("📝 Patient updated with phone:", sanitizedContactNumber);
+          console.log(`📝 Updated patient ${patient.id} with:`, updateData);
         }
       }
 
       finalPatientId = patient.id;
       finalUserId = session.user.id;
-      finalFullName = name;
+      finalFullName = name.trim();
       finalEmail = safeEmail;
-      finalAge = age ? parseInt(String(age), 10) : undefined;
+      finalAge = parsedAge ?? patient.age ?? undefined;
       finalContactNumber = sanitizedContactNumber;
     }
 
-    if (finalAge !== undefined && (isNaN(finalAge) || finalAge <= 0)) {
-      return NextResponse.json({ error: "Invalid age" }, { status: 400 });
+    if (finalAge !== undefined && (isNaN(finalAge) || finalAge <= 0 || finalAge > 999)) {
+      return NextResponse.json(
+        { error: "Invalid age (must be between 1 and 999)" },
+        { status: 400 }
+      );
     }
 
     if (source === "user") {
@@ -304,6 +344,7 @@ export async function POST(request: NextRequest) {
 
         console.log("✅ Appointment created with ID:", createdAppointment.id);
         console.log("📱 Contact number saved to appointment:", createdAppointment.contactNumber);
+        console.log("📅 Age saved to appointment:", createdAppointment.age);
 
         return createdAppointment;
       },
@@ -312,38 +353,26 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // ---------- SEND SMS CONFIRMATION ----------
     console.log("=" .repeat(50));
     console.log("📨 STARTING SMS SEND PROCESS");
     console.log("=" .repeat(50));
 
     try {
-      // Check if we have a contact number
       if (!appointment.contactNumber) {
         console.log("❌ NO CONTACT NUMBER - Skipping SMS");
-        console.log("Appointment data:", {
-          id: appointment.id,
-          fullName: appointment.fullName,
-          contactNumber: appointment.contactNumber,
-        });
       } else {
         console.log(`📱 Phone number found: ${appointment.contactNumber}`);
-        console.log(`📱 Phone number length: ${appointment.contactNumber.length}`);
         
-        // Check if phone number is valid PH format
         if (!isValidPHMobile(appointment.contactNumber)) {
           console.log(`❌ Invalid PH mobile format: ${appointment.contactNumber}`);
-          console.log("Format should be: 09XXXXXXXXX (11 digits)");
         } else {
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-          console.log(`📡 Base URL: ${baseUrl}`);
           
           const formattedDate = new Date(appointment.appointmentDate).toLocaleDateString('en-PH', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
           });
-          console.log(`📅 Formatted date: ${formattedDate}`);
 
           const smsPayload = {
             phone_number: appointment.contactNumber,
@@ -355,22 +384,15 @@ export async function POST(request: NextRequest) {
               time: appointment.appointmentTime,
             },
           };
-          console.log("📤 SMS Payload:", JSON.stringify(smsPayload, null, 2));
 
-          console.log(`📤 Sending request to: ${baseUrl}/api/sms/send`);
-          
           const smsResponse = await fetch(`${baseUrl}/api/sms/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(smsPayload),
           });
 
-          const smsData = await smsResponse.json();
-          console.log("📨 SMS API Response Status:", smsResponse.status);
-          console.log("📨 SMS API Response Body:", JSON.stringify(smsData, null, 2));
-
           if (!smsResponse.ok) {
-            console.error("❌ SMS API returned error:", smsData);
+            console.error("❌ SMS API returned error:", await smsResponse.text());
           } else {
             console.log("✅ SMS sent successfully!");
           }
@@ -378,7 +400,6 @@ export async function POST(request: NextRequest) {
       }
     } catch (smsError) {
       console.error("❌ Failed to send SMS confirmation:", smsError);
-      // Do not block the appointment creation if SMS fails
     }
 
     console.log("=" .repeat(50));
@@ -389,6 +410,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         appointment,
+        patientSynced: true,
         message:
           source === "user"
             ? "Your appointment is confirmed"

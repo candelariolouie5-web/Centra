@@ -12,60 +12,72 @@ export default function SidebarSecretary() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col flex-shrink-0 shadow-sm">
-      <div className="px-6 pt-7 pb-5 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 bg-gradient-to-br from-emerald-600 to-teal-500 rounded-xl flex items-center justify-center">
-            <Stethoscope className="text-white text-lg" size={20} />
+    <aside className="flex w-72 flex-col bg-slate-900 text-white border-r border-slate-700 shadow-xl flex-shrink-0">
+      {/* Brand Section */}
+      <div className="border-b border-slate-700/60 px-5 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-400 shadow-lg shadow-emerald-900/30">
+            <Stethoscope className="text-slate-900" size={20} />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-800">ClinicFlow</h1>
-            <p className="text-xs text-emerald-600 font-medium">Secretary Portal</p>
+            <h1 className="text-lg font-bold tracking-tight text-white">ClinicFlow</h1>
+            <p className="text-[11px] font-medium text-emerald-300">Secretary Portal</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 py-6 px-4 overflow-y-auto">
-        <div className="space-y-1.5">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-6">
+        <div className="space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? "bg-emerald-50 text-emerald-700 border-l-3 border-emerald-600"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-emerald-600/20 text-emerald-300 shadow-sm shadow-emerald-900/30"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
                 }`}
               >
-                <item.icon size={18} className={isActive ? "text-emerald-600" : "text-gray-500"} />
+                <item.icon
+                  size={18}
+                  className={isActive ? "text-emerald-400" : "text-slate-400"}
+                />
                 <span>{item.name}</span>
+                {isActive && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                )}
               </Link>
             );
           })}
         </div>
-
-        <div className="pt-8 mt-6 border-t border-gray-100">
-          <Link
-            href="/api/auth/logout"
-            className="flex items-center gap-3 px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50"
-          >
-            <LogOut size={18} />
-            <span>Logout</span>
-          </Link>
-        </div>
       </nav>
 
-      <div className="p-4 border-t border-gray-100 bg-gray-50/40">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center">
-            <span className="text-emerald-700 font-medium">SW</span>
+      {/* Logout – at the bottom, before user profile */}
+      <div className="border-t border-slate-700/60 px-3 py-3">
+        <Link
+          href="/api/auth/logout"
+          className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-slate-800 hover:text-white"
+        >
+          <LogOut size={18} className="text-slate-400" />
+          <span>Logout</span>
+        </Link>
+      </div>
+
+      {/* User Profile Footer */}
+      <div className="border-t border-slate-700/60 bg-slate-800/50 px-4 py-4">
+        <div className="flex items-center gap-3 rounded-xl bg-slate-800/80 p-3 shadow-sm ring-1 ring-slate-700">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-bold text-white shadow-inner">
+            SW
           </div>
-          <div>
-            <p className="text-xs text-gray-500">Signed in as</p>
-            <p className="text-sm font-semibold text-gray-800">Sarah Wilson</p>
-            <p className="text-xs text-emerald-600">Secretary · Front Desk</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Signed in as
+            </p>
+            <p className="truncate text-sm font-semibold text-white">Sarah Wilson</p>
+            <p className="truncate text-xs text-emerald-300">Secretary · Front Desk</p>
           </div>
         </div>
       </div>

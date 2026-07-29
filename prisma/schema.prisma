@@ -47,6 +47,7 @@ model User {
   appointments  Appointment[]
   Session       Session[]
   blockedDates  BlockedDate[] @relation("DoctorBlockedDates")
+  clinicalTemplates ClinicalTemplate[]
 
   @@index([email])
 }
@@ -73,6 +74,7 @@ model Patient {
   appointments     Appointment[]
   soapNotes        SoapNote[]
   medicalHistories MedicalHistory[]
+  clinicalFindings ClinicalFinding[]
 
   @@index([email])
   @@map("patients")
@@ -264,6 +266,36 @@ model BlockedDate {
 
   @@index([doctorId])
   @@index([startDate])
+}
+
+model ClinicalFinding {
+  id         String   @id @default(cuid())
+  patientId  String
+  anatomy    String
+  diagnosis  String
+  impression String?
+  createdAt  DateTime @default(now())
+
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([anatomy])
+  @@index([diagnosis])
+}
+
+model ClinicalTemplate {
+  id         String   @id @default(cuid())
+  userId     String
+  anatomy    String
+  name       String
+  findings   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, anatomy, name])
+  @@index([userId, anatomy])
 }
 
 enum Role {

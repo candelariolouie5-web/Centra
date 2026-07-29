@@ -4,9 +4,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: process.cwd(),
-  },
+  // turbopack removed or left empty if needed later
 };
 
 export default nextConfig;

@@ -20,7 +20,6 @@ export async function GET(_request: NextRequest) {
   }
 
   try {
-    // Fetch appointments assigned to THIS admin (all statuses)
     const appointments = await prisma.appointment.findMany({
       where: {
         assignedToRole: "ADMIN",
@@ -51,7 +50,6 @@ export async function GET(_request: NextRequest) {
       orderBy: [{ appointmentDate: "desc" }, { createdAt: "desc" }],
     });
 
-    // Deterministic sorting to pick latest appointment per patient
     const sortedAppointments = [...appointments].sort((a, b) => {
       const aDate = a.appointmentDate instanceof Date ? a.appointmentDate : new Date(a.appointmentDate);
       const bDate = b.appointmentDate instanceof Date ? b.appointmentDate : new Date(b.appointmentDate);
@@ -91,6 +89,8 @@ export async function GET(_request: NextRequest) {
         id: patient.id,
         name: patient.name || appt.fullName || "N/A",
         email: patient.email || appt.email || null,
+        phone: patient.phone || null,
+        age: patient.age || null,
         image: null,
         createdAt: patient.createdAt.toISOString(),
         chiefComplaints: latestSoapNote?.chiefComplaint || null,
@@ -134,15 +134,6 @@ export async function POST(request: NextRequest) {
       gender,
       phone,
       address,
-      emergencyName,
-      emergencyRelationship,
-      emergencyPhone,
-      emergencyAltPhone,
-      physicianName,
-      physicianClinic,
-      physicianPhone,
-      physicianEmail,
-      consent,
     } = body;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

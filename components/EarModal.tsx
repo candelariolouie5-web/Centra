@@ -7,7 +7,7 @@ import { useEffect } from "react";
  
 function EarModel3D() {
   const gltf = useGLTF(
-    "/models/ear-anatomy/source/ear_model/scene.gltf"
+    "/models/ear-anatomy/source/EARSblend.glb"
   );
  
   return (
@@ -39,11 +39,31 @@ export default function EarModel() {
       {/* Camera setup */}
       <CameraSetup />
      
-      {/* Lights */}
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 3, 3]} intensity={1} />
-      <directionalLight position={[-3, -3, -3]} intensity={0.5} />
-      <directionalLight position={[0, 5, 0]} intensity={0.3} />
+      {/* Enhanced Lights - MAS MALIWANAG */}
+      <ambientLight intensity={0.8} /> {/* Tumaas mula 0.6 */}
+     
+      {/* Main front light */}
+      <directionalLight position={[0, 0, 5]} intensity={1.5} />
+     
+      {/* Side lights */}
+      <directionalLight position={[5, 2, 3]} intensity={1.2} />
+      <directionalLight position={[-5, 2, 3]} intensity={1.2} />
+     
+      {/* Back light para may konting rim light */}
+      <directionalLight position={[0, 0, -5]} intensity={0.5} />
+     
+      {/* Top light */}
+      <directionalLight position={[0, 5, 2]} intensity={0.8} />
+     
+      {/* Bottom light para ma-illuminate ang ilalim */}
+      <directionalLight position={[0, -5, 2]} intensity={0.3} />
+ 
+      {/* Additional ambient light para sa general brightness */}
+      <hemisphereLight
+        color="#ffffff"
+        groundColor="#444444"
+        intensity={0.6}
+      />
  
       {/* 3D Model with Center component */}
       <EarModel3D />
@@ -65,5 +85,4 @@ export default function EarModel() {
 }
  
 /* Preload the model */
-useGLTF.preload("/models/ear-anatomy/source/ear_model/scene.gltf");
- 
+useGLTF.preload("/models/ear-anatomy/source/EARSblend.glb");

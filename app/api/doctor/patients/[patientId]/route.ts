@@ -62,5 +62,4 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     console.error("Doctor delete patient error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
-
+} 

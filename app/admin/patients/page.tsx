@@ -31,6 +31,8 @@ interface Patient {
   name: string | null;
   email: string | null;
   image?: string | null;
+  age?: number | null;
+  phone?: string | null;
   createdAt: string;
   latestAppointmentStatus?: AppointmentStatus | null;
   hasTodayAppointment?: boolean;
@@ -54,7 +56,7 @@ export default function PatientsPage() {
   const [medicalHistoryKey, setMedicalHistoryKey] = useState(0);
 
   type FilterKey = "ongoing" | "today" | "cancelled" | "completed";
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("today"); // Changed from "ongoing" to "today"
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("today");
 
   useEffect(() => {
     fetchPatients();
@@ -284,7 +286,6 @@ export default function PatientsPage() {
 
       <main className="p-6">
         <div className="mx-auto max-w-7xl space-y-6">
-          {/* Hero Banner */}
           <div className="overflow-hidden rounded-3xl border border-cyan-100 bg-white shadow-xl shadow-cyan-600/5">
             <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 px-6 py-8 text-white md:px-8">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.15),_transparent_40%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.05),_transparent_40%)]" />
@@ -334,7 +335,6 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="group rounded-2xl border border-cyan-100 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-600/5">
               <div className="flex items-start justify-between">
@@ -414,7 +414,6 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          {/* Search and Filter Section */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
@@ -441,7 +440,6 @@ export default function PatientsPage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {/* Filters */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -526,7 +524,6 @@ export default function PatientsPage() {
               </div>
             </div>
 
-            {/* Patients Table */}
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-sm">
@@ -650,7 +647,6 @@ export default function PatientsPage() {
               </div>
             </div>
 
-            {/* Pagination */}
             {filteredPatients.length > 0 && (
               <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
@@ -721,7 +717,6 @@ export default function PatientsPage() {
         </div>
       </main>
 
-      {/* Modals */}
       <PatientDetailsModal
         key={`details-${medicalHistoryKey}`}
         open={showDetails}
@@ -760,7 +755,6 @@ export default function PatientsPage() {
   );
 }
 
-// Missing CheckCircle import
 const CheckCircle = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

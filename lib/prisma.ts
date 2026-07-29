@@ -106,6 +106,7 @@ export async function getEligibleStaffByRole(
     return eligibleUsers;
   }
 
+  // @ts-ignore
   const blockedState = await getBlockedStateForDate(dateInput, db);
 
   if (role === "ADMIN") {

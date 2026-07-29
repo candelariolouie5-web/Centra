@@ -1,3 +1,5 @@
+// components/PatientDetailsModal.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -24,7 +26,6 @@ const displayValue = (value?: string | number | null) => {
   if (value === undefined || value === null || String(value).trim() === "") {
     return "Not provided";
   }
-
   return String(value);
 };
 
@@ -49,16 +50,18 @@ const getResolvedPatientId = (patient: any) => {
 
 /* ---------------- FIELD ---------------- */
 
-const Field = ({ label, value }: { label: string; value?: string | number | null }) => (
-  <div className="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
-    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-      {label}
-    </p>
-    <p className="mt-2 text-[15px] font-semibold leading-6 text-slate-950 break-words">
-      {displayValue(value)}
-    </p>
-  </div>
-);
+const Field = ({ label, value }: { label: string; value?: string | number | null }) => {
+  return (
+    <div className="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+        {label}
+      </p>
+      <p className="mt-2 text-[15px] font-semibold leading-6 text-slate-950 break-words">
+        {displayValue(value)}
+      </p>
+    </div>
+  );
+};
 
 /* ---------------- PLACEHOLDER ---------------- */
 
@@ -125,6 +128,8 @@ type LatestAppointment = {
   appointmentDate: string;
   appointmentTime: string;
   secretaryStatus: string;
+  contactNumber?: string;
+  age?: number;
 } | null;
 
 const VitalSigns = ({ patientId }: { patientId: string }) => {
@@ -491,75 +496,86 @@ const PatientDetailsModal = ({
   const [loadingMedicalHistory, setLoadingMedicalHistory] = useState(false);
   const [medicalHistoryError, setMedicalHistoryError] = useState("");
   
-  // State for latest appointment phone number
-  const [latestAppointmentPhone, setLatestAppointmentPhone] = useState<string | null>(null);
-  const [loadingPhone, setLoadingPhone] = useState(false);
+  const [appointmentInfo, setAppointmentInfo] = useState<{
+    phone: string | null;
+    age: number | null;
+    name: string | null;
+  }>({
+    phone: null,
+    age: null,
+    name: null,
+  });
+  const [loadingAppointmentInfo, setLoadingAppointmentInfo] = useState(false);
 
   const resolvedPatientId = getResolvedPatientId(patient);
 
-  // Fetch the latest appointment phone number directly
-  const fetchLatestAppointmentPhone = async () => {
+  // 🔍 DEBUG: Log patient data when it changes
+  useEffect(() => {
+    if (patient && open) {
+      console.log("🔍 === PATIENT DATA IN MODAL ===");
+      console.log("Full patient object:", patient);
+      console.log("Patient age:", patient.age);
+      console.log("Patient phone:", patient.phone);
+      console.log("Patient name:", patient.name);
+      console.log("All keys in patient:", Object.keys(patient));
+      
+      if (patient.age === undefined || patient.age === null) {
+        console.warn("⚠️ Patient age is missing or null!");
+      } else {
+        console.log("✅ Patient age is:", patient.age);
+      }
+    }
+  }, [patient, open]);
+
+  const fetchLatestAppointmentInfo = async () => {
     if (!resolvedPatientId || !open) {
-      setLatestAppointmentPhone(null);
+      setAppointmentInfo({ phone: null, age: null, name: null });
       return;
     }
 
-    setLoadingPhone(true);
+    setLoadingAppointmentInfo(true);
     try {
       const isAdminPortal = pathname.startsWith("/admin");
       const isDoctorPortal = pathname.startsWith("/doctor");
       
       if (!isAdminPortal && !isDoctorPortal) {
-        setLatestAppointmentPhone(null);
+        setAppointmentInfo({ phone: null, age: null, name: null });
         return;
       }
 
       const basePath = isAdminPortal ? "/api/admin" : "/api/doctor";
       
-      // Use the dedicated endpoint to get the patient's latest appointment
       const response = await fetch(`${basePath}/patients/${resolvedPatientId}/latest-appointment`, {
         cache: "no-store",
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.appointment?.contactNumber) {
-          setLatestAppointmentPhone(data.appointment.contactNumber);
-          console.log("📱 Found phone from appointment:", data.appointment.contactNumber);
+        if (data.appointment) {
+          const appointmentData: any = {
+            phone: data.appointment.contactNumber || null,
+            age: data.appointment.age || null,
+            name: data.appointment.fullName || null,
+          };
+          setAppointmentInfo(appointmentData);
+          console.log("📋 Found appointment data:", appointmentData);
           return;
         }
       }
       
-      // If the endpoint doesn't exist, try to find any appointment with a phone number
-      // by checking if the patient has any appointments
-      const patientResponse = await fetch(`${basePath}/patients/${resolvedPatientId}`, {
-        cache: "no-store",
-      });
-      
-      if (patientResponse.ok) {
-        const patientData = await patientResponse.json();
-        // Check if the patient has a latestAppointment field
-        const latestAppt = patientData.patient?.latestAppointment || patientData.latestAppointment;
-        if (latestAppt?.contactNumber) {
-          setLatestAppointmentPhone(latestAppt.contactNumber);
-          return;
-        }
-      }
-      
-      setLatestAppointmentPhone(null);
+      setAppointmentInfo({ phone: null, age: null, name: null });
       
     } catch (error) {
-      console.error("Failed to fetch latest appointment phone:", error);
-      setLatestAppointmentPhone(null);
+      console.error("Failed to fetch latest appointment info:", error);
+      setAppointmentInfo({ phone: null, age: null, name: null });
     } finally {
-      setLoadingPhone(false);
+      setLoadingAppointmentInfo(false);
     }
   };
 
-  // Fetch phone when modal opens or patient changes
   useEffect(() => {
     if (open && resolvedPatientId) {
-      fetchLatestAppointmentPhone();
+      fetchLatestAppointmentInfo();
     }
   }, [open, resolvedPatientId, pathname]);
 
@@ -630,9 +646,7 @@ const PatientDetailsModal = ({
 
   if (!open || !patient) return null;
 
-  // Determine the phone number to display
-  const displayPhone = patient?.phone || latestAppointmentPhone || null;
-  const hasPhoneFromAppointment = !patient?.phone && latestAppointmentPhone;
+  const displayPhone = patient?.phone || appointmentInfo.phone || null;
 
   const tabs = [
     { id: "info", label: "Patient Information" },
@@ -658,14 +672,9 @@ const PatientDetailsModal = ({
                 <p className="mt-1 truncate text-sm font-medium text-slate-700">
                   {displayValue(patient.email)}
                 </p>
-                {hasPhoneFromAppointment && !loadingPhone && (
-                  <p className="mt-1 truncate text-xs font-medium text-amber-600">
-                    📱 Phone from latest appointment: {latestAppointmentPhone}
-                  </p>
-                )}
-                {loadingPhone && (
+                {loadingAppointmentInfo && (
                   <p className="mt-1 truncate text-xs font-medium text-slate-400">
-                    Loading phone number...
+                    Loading appointment data...
                   </p>
                 )}
               </div>
@@ -710,21 +719,22 @@ const PatientDetailsModal = ({
                 subtitle="Basic profile and contact details."
               >
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Full Name" value={patient.name} />
                   <Field label="Age" value={patient.age} />
                   <Field label="Gender" value={patient.gender} />
                   <Field label="Mobile Number" value={displayPhone} />
                   <Field label="Address" value={patient.address} />
                   <Field label="Email Address" value={patient.email} />
                 </div>
-                {hasPhoneFromAppointment && !loadingPhone && (
-                  <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 ring-1 ring-amber-200">
-                    💡 This phone number is from the patient's latest appointment. 
-                    Update the patient's profile to save it permanently.
-                  </div>
-                )}
-                {!displayPhone && !loadingPhone && (
+                
+                {!displayPhone && !loadingAppointmentInfo && (
                   <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 ring-1 ring-blue-200">
                     ℹ️ No phone number found. Patient needs to update their contact information.
+                  </div>
+                )}
+                {loadingAppointmentInfo && (
+                  <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
+                    🔄 Checking for appointment data...
                   </div>
                 )}
               </SectionCard>

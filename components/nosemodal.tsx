@@ -7,7 +7,7 @@ import * as THREE from "three";
  
 function NoseModel() {
   const { scene } = useGLTF(
-    "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/Nose.glb"
+    "/models/ear-anatomy/nose/nosee.glb"
   );
  
   useEffect(() => {
@@ -27,7 +27,7 @@ function NoseModel() {
 }
  
 useGLTF.preload(
-  "/models/ear-anatomy/nose/anatomi_hidung_nose_anatomy/Nose.glb"
+  "/models/ear-anatomy/nose/nosee.glb"
 );
  
 export default function NoseViewer() {
@@ -41,7 +41,7 @@ export default function NoseViewer() {
         <OrbitControls
           enableZoom
           enablePan
-          minDistance={2}
+          minDistance={0.2}
           maxDistance={10}
         />
  
@@ -52,3 +52,4 @@ export default function NoseViewer() {
     </div>
   );
 }
+ 

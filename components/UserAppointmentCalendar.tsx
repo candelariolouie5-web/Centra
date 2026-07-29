@@ -9,7 +9,7 @@ import {
   Phone,
   User2,
   Stethoscope,
-  Check, // <-- added for confirmation icon
+  Check,
 } from "lucide-react";
 
 type ServiceType = "ear" | "nose" | "throat" | "aesthetics";
@@ -64,20 +64,16 @@ function isSunday(date: Date) {
 function isToday(date: Date) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
-
   return target.getTime() === today.getTime();
 }
 
 function isPastDay(date: Date) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
-
   return target < today;
 }
 
@@ -94,12 +90,14 @@ export default function UserAppointmentCalendar() {
 
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [gender, setGender] = useState(""); // ✅ NEW
   const [contactNumber, setContactNumber] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("ear");
 
   const [formErrors, setFormErrors] = useState<{
     fullName?: string;
     age?: string;
+    gender?: string; // ✅ NEW
     contactNumber?: string;
   }>({});
 
@@ -114,7 +112,6 @@ export default function UserAppointmentCalendar() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
 
-  // 👇 NEW STATE for success confirmation screen
   const [showSuccess, setShowSuccess] = useState(false);
   const [successData, setSuccessData] = useState<{
     date: Date;
@@ -135,6 +132,8 @@ export default function UserAppointmentCalendar() {
     fullName.trim() !== "" &&
     age.trim() !== "" &&
     Number(age) > 0 &&
+    Number(age) <= 999 && // ✅ max 3 digits
+    gender.trim() !== "" && // ✅ gender required
     contactNumber.length === 11 &&
     isValidPHMobile(contactNumber);
 
@@ -149,6 +148,7 @@ export default function UserAppointmentCalendar() {
     const errors: {
       fullName?: string;
       age?: string;
+      gender?: string;
       contactNumber?: string;
     } = {};
 
@@ -160,6 +160,12 @@ export default function UserAppointmentCalendar() {
       errors.age = "Age is required";
     } else if (isNaN(Number(age)) || Number(age) <= 0) {
       errors.age = "Age must be a positive number";
+    } else if (Number(age) > 999) {
+      errors.age = "Age cannot exceed 999"; // ✅ 3-digit limit
+    }
+
+    if (!gender.trim()) {
+      errors.gender = "Gender is required"; // ✅ NEW
     }
 
     if (!contactNumber.trim()) {
@@ -382,6 +388,7 @@ export default function UserAppointmentCalendar() {
         time: selectedTime,
         name: fullName.trim(),
         age,
+        gender, // ✅ NEW
         contactNumber,
         email: session.user.email || "",
         serviceType,
@@ -401,7 +408,6 @@ export default function UserAppointmentCalendar() {
       console.log("📨 Server response:", responseData);
 
       if (res.ok) {
-        // ✅ SUCCESS – show confirmation screen
         setSuccessData({
           date: selectedDate,
           time: selectedTime,
@@ -413,10 +419,6 @@ export default function UserAppointmentCalendar() {
         setShowConfirmModal(false);
         setSelectedDate(null);
         setSelectedTime(null);
-        // Optionally reset form fields (or keep them)
-        // setFullName("");
-        // setAge("");
-        // setContactNumber("");
       } else {
         alert(`❌ ${responseData.error || "Failed to book appointment"}`);
       }
@@ -447,13 +449,12 @@ export default function UserAppointmentCalendar() {
     );
   };
 
-  // Reset success state and go back to booking form
   const handleBookAnother = () => {
     setShowSuccess(false);
     setSuccessData(null);
-    // You may also reset form fields if desired
     setFullName("");
     setAge("");
+    setGender(""); // ✅ NEW
     setContactNumber("");
   };
 
@@ -495,7 +496,6 @@ export default function UserAppointmentCalendar() {
           </div>
 
           {!showSuccess ? (
-            /* ─── BOOKING FORM (shown when not confirmed) ─── */
             <div className="space-y-8 p-6 md:p-8">
               <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
                 <div className="mb-5 flex items-center gap-3">
@@ -532,6 +532,8 @@ export default function UserAppointmentCalendar() {
                     <input
                       type="number"
                       min="1"
+                      max="999"
+                      step="1"
                       value={age}
                       onChange={(e) => setAge(e.target.value)}
                       className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
@@ -539,6 +541,23 @@ export default function UserAppointmentCalendar() {
                     />
                     {formErrors.age && (
                       <p className="mt-2 text-xs font-medium text-red-500">{formErrors.age}</p>
+                    )}
+                  </div>
+
+                  {/* ✅ NEW – Gender field */}
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Gender</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                    {formErrors.gender && (
+                      <p className="mt-2 text-xs font-medium text-red-500">{formErrors.gender}</p>
                     )}
                   </div>
 
@@ -633,10 +652,8 @@ export default function UserAppointmentCalendar() {
               </div>
             </div>
           ) : (
-            /* ─── CONFIRMATION SUCCESS SCREEN ─── */
             <div className="space-y-6 p-6 md:p-8">
               <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm">
-                {/* Checkmark & heading */}
                 <div className="flex flex-col items-center text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                     <Check className="h-8 w-8" />
@@ -649,7 +666,6 @@ export default function UserAppointmentCalendar() {
                   </p>
                 </div>
 
-                {/* Details card */}
                 <div className="mt-6 rounded-2xl bg-slate-50 p-4 border border-slate-200">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <span className="font-medium text-slate-500">Date</span>
@@ -671,7 +687,6 @@ export default function UserAppointmentCalendar() {
                   </div>
                 </div>
 
-                {/* Doctor card */}
                 <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-lg font-bold">
                     👨‍⚕️
@@ -682,7 +697,6 @@ export default function UserAppointmentCalendar() {
                   </div>
                 </div>
 
-                {/* Action buttons */}
                 <div className="mt-6 flex flex-col sm:flex-row gap-3">
                   <button
                     className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-medium text-slate-700 transition hover:bg-slate-50"
@@ -698,7 +712,6 @@ export default function UserAppointmentCalendar() {
                   </button>
                 </div>
 
-                {/* Book another appointment button */}
                 <div className="mt-6 text-center">
                   <button
                     onClick={handleBookAnother}
@@ -900,7 +913,7 @@ export default function UserAppointmentCalendar() {
         </div>
       )}
 
-      {/* ─── CONFIRM MODAL (pre‑booking review) ─── */}
+      {/* ─── CONFIRM MODAL ─── */}
       {showConfirmModal && isFormComplete && selectedDate && selectedTime && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]">
           <div className="mx-4 w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_rgba(15,23,42,0.25)]">
@@ -915,8 +928,16 @@ export default function UserAppointmentCalendar() {
                 <p className="mt-1 text-sm font-semibold text-slate-900">{fullName}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">Gender</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{gender || "—"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-medium text-slate-500">Contact</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{contactNumber}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">Age</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{age}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-medium text-slate-500">Date</p>
@@ -967,4 +988,4 @@ export default function UserAppointmentCalendar() {
       )}
     </div>
   );
-} 
+}

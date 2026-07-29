@@ -29,14 +29,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [] }, { status: 200 });
     }
 
-    // Raw SQL filtered for ADMIN appointments
+    // ✅ TINANGGAL ANG "assignedToRole = 'ADMIN'" FILTER
     const results = await prisma.$queryRaw`
       SELECT
         EXTRACT(MONTH FROM "appointmentDate")::int as month,
         COUNT(*)::int as count
       FROM "Appointment"
       WHERE status IN ('ACCEPTED', 'CONFIRMED')
-        AND "assignedToRole" = 'ADMIN'
         AND EXTRACT(YEAR FROM "appointmentDate")::int = ${year}
         AND EXTRACT(MONTH FROM "appointmentDate")::int = ANY(${selectedMonths})
       GROUP BY month
@@ -45,7 +44,6 @@ export async function GET(request: NextRequest) {
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-    // Create data for all selected months, defaulting to 0
     const data = selectedMonths.map(monthNum => {
       const result = results.find(r => r.month === monthNum);
       return {

@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // ✅ TINANGGAL ANG "assignedToRole: 'ADMIN'" FILTER
     const appointments = await prisma.appointment.findMany({
       where: {
-        assignedToRole: "ADMIN",  // ADMIN-only visibility
         appointmentDate: {
           gte: today,
           lt: tomorrow,
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ appointments }, { status: 200 });
   } catch (error) {
-    console.error("Error fetching admin today's appointments:", error);
+    console.error("Error fetching today's appointments:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
