@@ -51,12 +51,16 @@ const getResolvedPatientId = (patient: any) => {
 /* ---------------- FIELD ---------------- */
 
 const Field = ({ label, value }: { label: string; value?: string | number | null }) => {
+  if (label === "Age") {
+    console.log("📝 Age Field received value:", value, "type:", typeof value);
+  }
+
   return (
-    <div className="rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+    <div className="rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200/70 transition hover:shadow-md">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-[15px] font-semibold leading-6 text-slate-950 break-words">
+      <p className="mt-1 text-base font-semibold text-slate-900 break-words">
         {displayValue(value)}
       </p>
     </div>
@@ -66,7 +70,7 @@ const Field = ({ label, value }: { label: string; value?: string | number | null
 /* ---------------- PLACEHOLDER ---------------- */
 
 const Placeholder = ({ text }: { text: string }) => (
-  <div className="rounded-2xl bg-white px-6 py-12 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
+  <div className="rounded-xl bg-slate-50/80 px-6 py-10 text-center text-sm font-medium text-slate-600 ring-1 ring-slate-200/60">
     {text}
   </div>
 );
@@ -84,12 +88,12 @@ const SectionCard = ({
   right?: React.ReactNode;
   children: React.ReactNode;
 }) => (
-  <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
+  <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70 transition hover:shadow-md">
     {(title || right) && (
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {title && <h3 className="text-lg font-bold text-slate-950">{title}</h3>}
-          {subtitle && <p className="mt-1 text-sm font-medium text-slate-700">{subtitle}</p>}
+          {title && <h3 className="text-lg font-bold text-slate-900">{title}</h3>}
+          {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
         </div>
         {right}
       </div>
@@ -268,7 +272,7 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
     { key: "bloodPressure", label: "Blood Pressure", value: latestVitals?.bloodPressure, unit: "mmHg" },
     { key: "pulse", label: "Heart Rate", value: latestVitals?.pulse, unit: "bpm" },
     { key: "temperature", label: "Temperature", value: latestVitals?.temperature, unit: "°C" },
-    { key: "oxygenSaturation", label: "SpO2", value: latestVitals?.oxygenSaturation, unit: "%" },
+    { key: "oxygenSaturation", label: "SpO₂", value: latestVitals?.oxygenSaturation, unit: "%" },
     { key: "respiratoryRate", label: "Respiratory", value: latestVitals?.respiratoryRate, unit: "/min" },
     { key: "weight", label: "Weight", value: latestVitals?.weight, unit: "kg" },
     { key: "height", label: "Height", value: latestVitals?.height, unit: "cm" },
@@ -281,7 +285,7 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
       right={
         <button
           onClick={() => setShowVitalsForm((prev) => !prev)}
-          className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+          className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 hover:shadow-md"
         >
           {showVitalsForm ? "Cancel" : latestVitals ? "Edit Vitals" : "Record Vitals"}
         </button>
@@ -291,38 +295,40 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
         <Placeholder text="Loading latest vital signs..." />
       ) : (
         <>
-          {vitalsError ? (
-            <div className="mb-4 rounded-2xl bg-red-50 px-6 py-5 text-center text-sm font-medium text-red-600 ring-1 ring-red-200">
+          {vitalsError && (
+            <div className="mb-4 rounded-xl bg-red-50 px-5 py-4 text-sm font-medium text-red-600 ring-1 ring-red-200/70">
               {vitalsError}
             </div>
-          ) : null}
+          )}
 
-          {!latestVitals && !showVitalsForm ? (
+          {!latestVitals && !showVitalsForm && (
             <Placeholder text="No vitals recorded yet. Click Record Vitals to add measurements." />
-          ) : null}
+          )}
 
-          {latestVitals && !showVitalsForm ? (
+          {latestVitals && !showVitalsForm && (
             <>
-              {latestVitals.appointment ? (
-                <div className="mb-4 rounded-2xl bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-700 ring-1 ring-teal-100">
+              {latestVitals.appointment && (
+                <div className="mb-4 rounded-xl bg-teal-50/80 px-4 py-3 text-sm font-medium text-teal-700 ring-1 ring-teal-200/70">
                   From {latestVitals.appointment.serviceType} on{" "}
                   {new Date(latestVitals.appointment.appointmentDate).toLocaleDateString()} at{" "}
                   {latestVitals.appointment.appointmentTime}
                 </div>
-              ) : null}
+              )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {vitals.map((vital) => (
                   <div
                     key={vital.key}
-                    className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200/70"
+                    className="rounded-xl bg-slate-50/80 px-5 py-4 ring-1 ring-slate-200/60 transition hover:bg-slate-50"
                   >
-                    <p className="text-xs font-semibold text-slate-700">{vital.label}</p>
-                    <div className="mt-2 flex items-end gap-2">
-                      <p className="text-2xl font-bold tracking-tight text-slate-950">
-                        {vital.value || "--"}
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      {vital.label}
+                    </p>
+                    <div className="mt-1 flex items-end gap-2">
+                      <p className="text-2xl font-bold tracking-tight text-slate-900">
+                        {vital.value || "—"}
                       </p>
-                      <span className="pb-1 text-xs font-semibold text-slate-700">
+                      <span className="pb-0.5 text-xs font-medium text-slate-500">
                         {vital.unit}
                       </span>
                     </div>
@@ -330,34 +336,34 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
                 ))}
               </div>
 
-              {latestVitals.notes ? (
-                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200/70">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+              {latestVitals.notes && (
+                <div className="mt-4 rounded-xl bg-slate-50/80 px-5 py-4 ring-1 ring-slate-200/60">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Notes
                   </p>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-800">
+                  <p className="mt-1 text-sm font-medium leading-6 text-slate-800">
                     {latestVitals.notes}
                   </p>
                 </div>
-              ) : null}
+              )}
             </>
-          ) : null}
+          )}
 
-          {showVitalsForm ? (
-            <div className="space-y-4">
+          {showVitalsForm && (
+            <div className="space-y-5">
               {latestAppointment ? (
-                <div className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 ring-1 ring-blue-100">
+                <div className="rounded-xl bg-blue-50/80 px-4 py-3 text-sm font-medium text-blue-700 ring-1 ring-blue-200/70">
                   Saving vitals under: {latestAppointment.serviceType} on{" "}
                   {new Date(latestAppointment.appointmentDate).toLocaleDateString()} at{" "}
                   {latestAppointment.appointmentTime}
                 </div>
               ) : (
-                <div className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 ring-1 ring-blue-100">
+                <div className="rounded-xl bg-blue-50/80 px-4 py-3 text-sm font-medium text-blue-700 ring-1 ring-blue-200/70">
                   No linked appointment found. A vitals record appointment will be created automatically.
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <VitalsInput
                   label="Blood Pressure"
                   value={vitalsForm.bloodPressure}
@@ -383,7 +389,7 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
                   }
                 />
                 <VitalsInput
-                  label="SpO2"
+                  label="SpO₂"
                   value={vitalsForm.oxygenSaturation}
                   placeholder="98"
                   onChange={(value) =>
@@ -426,7 +432,7 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
                     setVitalsForm((prev) => ({ ...prev, notes: event.target.value }))
                   }
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100/50"
                   placeholder="Optional notes"
                 />
               </label>
@@ -434,12 +440,12 @@ const VitalSigns = ({ patientId }: { patientId: string }) => {
               <button
                 onClick={saveVitals}
                 disabled={savingVitals}
-                className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingVitals ? "Saving..." : "Save Vitals"}
               </button>
             </div>
-          ) : null}
+          )}
         </>
       )}
     </SectionCard>
@@ -463,7 +469,7 @@ const VitalsInput = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100"
+      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100/50"
     />
   </label>
 );
@@ -509,7 +515,6 @@ const PatientDetailsModal = ({
 
   const resolvedPatientId = getResolvedPatientId(patient);
 
-  // 🔍 DEBUG: Log patient data when it changes
   useEffect(() => {
     if (patient && open) {
       console.log("🔍 === PATIENT DATA IN MODAL ===");
@@ -656,24 +661,25 @@ const PatientDetailsModal = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] bg-slate-50 shadow-2xl ring-1 ring-slate-200">
-        <div className="border-b border-slate-200 bg-white px-6 py-5 sm:px-7">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-slate-50/90 shadow-2xl ring-1 ring-slate-200/80">
+        {/* Header */}
+        <div className="border-b border-slate-200/80 bg-white/80 px-7 py-5 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-lg font-bold text-white shadow-sm">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 text-xl font-bold text-white shadow-md">
                 {patient.name?.charAt(0) || "P"}
               </div>
 
               <div className="min-w-0">
-                <h2 className="truncate text-xl font-bold tracking-tight text-slate-950">
+                <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900">
                   {patient.name || "Patient Details"}
                 </h2>
-                <p className="mt-1 truncate text-sm font-medium text-slate-700">
+                <p className="mt-0.5 truncate text-sm text-slate-500">
                   {displayValue(patient.email)}
                 </p>
                 {loadingAppointmentInfo && (
-                  <p className="mt-1 truncate text-xs font-medium text-slate-400">
+                  <p className="mt-0.5 truncate text-xs font-medium text-slate-400">
                     Loading appointment data...
                   </p>
                 )}
@@ -682,13 +688,14 @@ const PatientDetailsModal = ({
 
             <button
               onClick={onClose}
-              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             >
               <Icon name="close" className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          {/* Tabs */}
+          <div className="mt-5 flex flex-wrap gap-1.5">
             {tabs.map((t) => {
               const active = tab === t.id;
 
@@ -696,10 +703,10 @@ const PatientDetailsModal = ({
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
-                  className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                     active
                       ? "bg-teal-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-950"
+                      : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
                   }`}
                 >
                   {t.label}
@@ -709,7 +716,8 @@ const PatientDetailsModal = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-7">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-7 py-6">
           {tab === "info" && (
             <div className="space-y-6">
               <VitalSigns patientId={resolvedPatientId} />
@@ -728,12 +736,12 @@ const PatientDetailsModal = ({
                 </div>
                 
                 {!displayPhone && !loadingAppointmentInfo && (
-                  <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 ring-1 ring-blue-200">
+                  <div className="mt-4 rounded-xl bg-blue-50/80 px-4 py-3 text-sm font-medium text-blue-700 ring-1 ring-blue-200/70">
                     ℹ️ No phone number found. Patient needs to update their contact information.
                   </div>
                 )}
                 {loadingAppointmentInfo && (
-                  <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
+                  <div className="mt-4 rounded-xl bg-slate-50/80 px-4 py-3 text-sm font-medium text-slate-500 ring-1 ring-slate-200/60">
                     🔄 Checking for appointment data...
                   </div>
                 )}
@@ -758,25 +766,23 @@ const PatientDetailsModal = ({
               {!patient?.soapNote?.plan && !patient?.soapNote?.followUp ? (
                 <Placeholder text="No next treatment details available" />
               ) : (
-                <div className="px-4 sm:px-0">
-                  <dl className="divide-y divide-white/10">
-                    {patient?.soapNote?.plan && (
-                      <div className="grid grid-cols-3 gap-4 py-6 px-4">
-                        <dt className="text-sm font-medium text-gray-500">Plan</dt>
-                        <dd className="col-span-2 text-sm text-gray-400">
-                          {patient.soapNote.plan || "—"}
-                        </dd>
-                      </div>
-                    )}
-                    {patient?.soapNote?.followUp && (
-                      <div className="grid grid-cols-3 gap-4 py-6 px-4">
-                        <dt className="text-sm font-medium text-gray-500">Follow-up</dt>
-                        <dd className="col-span-2 text-sm text-gray-400">
-                          {patient.soapNote.followUp || "—"}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
+                <div className="divide-y divide-slate-200/70 rounded-xl bg-slate-50/80 ring-1 ring-slate-200/60">
+                  {patient?.soapNote?.plan && (
+                    <div className="grid grid-cols-3 gap-4 px-5 py-4">
+                      <dt className="text-sm font-semibold text-slate-500">Plan</dt>
+                      <dd className="col-span-2 text-sm font-medium text-slate-800">
+                        {patient.soapNote.plan || "—"}
+                      </dd>
+                    </div>
+                  )}
+                  {patient?.soapNote?.followUp && (
+                    <div className="grid grid-cols-3 gap-4 px-5 py-4">
+                      <dt className="text-sm font-semibold text-slate-500">Follow-up</dt>
+                      <dd className="col-span-2 text-sm font-medium text-slate-800">
+                        {patient.soapNote.followUp || "—"}
+                      </dd>
+                    </div>
+                  )}
                 </div>
               )}
             </SectionCard>
@@ -789,41 +795,37 @@ const PatientDetailsModal = ({
               right={
                 <button
                   onClick={onCreateMedicalHistory}
-                  className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                  className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 hover:shadow-md"
                 >
                   + Create Medical History
                 </button>
               }
             >
               {loadingMedicalHistory ? (
-                <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
-                  Loading medical histories...
-                </div>
+                <Placeholder text="Loading medical histories..." />
               ) : medicalHistoryError ? (
-                <div className="rounded-2xl bg-red-50 px-6 py-10 text-center text-sm font-medium text-red-600 ring-1 ring-red-200">
+                <div className="rounded-xl bg-red-50 px-5 py-10 text-center text-sm font-medium text-red-600 ring-1 ring-red-200/70">
                   {medicalHistoryError}
                 </div>
               ) : medicalHistories.length === 0 ? (
-                <div className="rounded-2xl bg-slate-50 px-6 py-10 text-center text-sm font-medium text-slate-700 ring-1 ring-slate-200">
-                  No medical history records found
-                </div>
+                <Placeholder text="No medical history records found" />
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {medicalHistories.map((record) => (
                     <div
                       key={record.id}
-                      className="overflow-hidden rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80"
+                      className="overflow-hidden rounded-xl bg-slate-50/80 p-5 ring-1 ring-slate-200/60 transition hover:shadow-sm"
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
-                          <h4 className="text-base font-bold text-slate-950">
+                          <h4 className="text-base font-bold text-slate-900">
                             {displayValue(record.type)}
                           </h4>
 
-                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-800">
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-500">
                             <span>
                               Result Date:{" "}
-                              <span className="font-semibold text-slate-950">
+                              <span className="font-semibold text-slate-700">
                                 {new Date(record.resultDate + "T12:00:00").toLocaleDateString()}
                               </span>
                             </span>
@@ -831,33 +833,33 @@ const PatientDetailsModal = ({
                             {record.lab && (
                               <span>
                                 Lab:{" "}
-                                <span className="font-semibold text-slate-950">{record.lab}</span>
+                                <span className="font-semibold text-slate-700">{record.lab}</span>
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                        <div className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200/70">
                           Added {new Date(record.createdAt).toLocaleDateString()}
                         </div>
                       </div>
 
-                      <div className="mt-4 rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200/80">
-                        <p className="text-sm font-medium leading-6 text-slate-900">
+                      <div className="mt-4 rounded-xl bg-white px-4 py-4 ring-1 ring-slate-200/60">
+                        <p className="text-sm leading-6 text-slate-800">
                           {displayValue(record.remarks)}
                         </p>
                       </div>
 
                       {record.photos && record.photos.length > 0 && (
                         <div className="mt-4">
-                          <p className="mb-3 text-sm font-semibold text-slate-900">
+                          <p className="mb-3 text-sm font-semibold text-slate-700">
                             Attached Photos
                           </p>
                           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                             {record.photos.map((photo, index) => (
                               <div
                                 key={index}
-                                className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200"
+                                className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200/60 transition hover:ring-slate-300"
                               >
                                 <img
                                   src={photo}

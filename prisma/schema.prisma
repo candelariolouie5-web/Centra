@@ -296,6 +296,50 @@ model ClinicalTemplate {
 
   @@unique([userId, anatomy, name])
   @@index([userId, anatomy])
+} model Announcement {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  bannerImage  String?  // optional
+  status       String   @default("Published") // "Published" | "Draft" | "Archived"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?  // admin user ID (kung may users table ka)
+  
+  @@map("announcements")
+} model Service {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String
+  status      String   @default("Active") // Active | Inactive
+  image       String?
+  details     Json     // stores the nested details object
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FAQ {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BlogPost {
+  id        String   @id @default(cuid())
+  title     String
+  excerpt   String?
+  content   String
+  image     String?
+  date      String
+  author    String
+  status    String   @default("Draft") // Published | Draft
+  embedUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Role {

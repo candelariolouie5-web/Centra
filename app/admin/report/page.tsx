@@ -2,7 +2,17 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Printer,
+  Save,
+  FileText,
+  Search,
+  User,
+  Mail,
+} from "lucide-react";
 
+// ---------- TYPE DEFINITIONS (unchanged) ----------
 type ReportTemplate = "medical" | "prescription" | "medcert";
 
 type Patient = {
@@ -68,12 +78,11 @@ type ReportData = {
   medicalHistories: MedicalHistory[];
 };
 
+// ---------- UTILITY FUNCTIONS (unchanged) ----------
 function formatDate(value?: string | Date | null) {
   if (!value) return "N/A";
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "N/A";
-
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -89,7 +98,6 @@ function cleanText(value?: string | number | null) {
 function getPrescriptionName(rx: Prescription) {
   const generic = rx.generic || rx.name || "";
   const brandName = rx.brandName || "";
-
   if (generic && brandName) return `${generic} (${brandName})`;
   return generic || brandName || "Medication";
 }
@@ -102,37 +110,27 @@ function getPrescriptionMeta(rx: Prescription) {
 
 function getDiagnosticImages(note: SoapNote | null) {
   if (!note) return [];
-
   if (Array.isArray(note.diagnosticImages) && note.diagnosticImages.length > 0) {
     return note.diagnosticImages.filter(Boolean);
   }
-
   return note.imageData ? [note.imageData] : [];
 }
 
-function PatientHeader({
-  patient,
-  title,
-}: {
-  patient: Patient;
-  title: string;
-}) {
+// ---------- REPORT TEMPLATES (completely unchanged) ----------
+function PatientHeader({ patient, title }: { patient: Patient; title: string }) {
   return (
     <header className="mb-8 flex items-start justify-between gap-6 border-b border-slate-200 pb-6 print:mb-6 print:pb-4">
       <div>
         <div className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold tracking-wide text-cyan-700">
           Centra Clinic PH
         </div>
-
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 print:text-2xl">
           {title}
         </h1>
-
         <p className="mt-1 text-sm text-slate-500">
           1488 A. Apolinario St. corner Calhoun, Makati City
         </p>
       </div>
-
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right text-sm text-slate-600">
         <p className="font-semibold text-slate-900">{patient.name}</p>
         <p>
@@ -155,7 +153,6 @@ function MedicalHistoryTemplate({
   return (
     <div className="report-content w-full rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:rounded-none print:border-none print:p-0 print:shadow-none">
       <PatientHeader patient={patient} title="Medical History Report" />
-
       <section>
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
@@ -166,13 +163,11 @@ function MedicalHistoryTemplate({
               Saved laboratory results, findings, remarks, and attachments.
             </p>
           </div>
-
           <div className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
             {medicalHistories.length} record
             {medicalHistories.length === 1 ? "" : "s"}
           </div>
         </div>
-
         {medicalHistories.length > 0 ? (
           <div className="space-y-4">
             {medicalHistories.map((item) => (
@@ -187,7 +182,6 @@ function MedicalHistoryTemplate({
                     </p>
                     <p className="font-semibold text-slate-800">{item.type}</p>
                   </div>
-
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Result Date
@@ -196,7 +190,6 @@ function MedicalHistoryTemplate({
                       {formatDate(item.resultDate)}
                     </p>
                   </div>
-
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Laboratory
@@ -206,7 +199,6 @@ function MedicalHistoryTemplate({
                     </p>
                   </div>
                 </div>
-
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Remarks
@@ -215,7 +207,6 @@ function MedicalHistoryTemplate({
                     {item.remarks}
                   </p>
                 </div>
-
                 {Array.isArray(item.photos) && item.photos.length > 0 && (
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {item.photos.map((photo, index) => (
@@ -237,7 +228,6 @@ function MedicalHistoryTemplate({
           </p>
         )}
       </section>
-
       <footer className="mt-10 border-t border-slate-200 pt-6 text-sm text-slate-600 print:mt-8">
         <p>Doctor&apos;s Signature: _______________________________</p>
         <p>Contact: (123) 456-7890 | centra@clinic.com</p>
@@ -261,11 +251,9 @@ function PrescriptionTemplate({
         <div className="mx-auto mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold tracking-wide text-cyan-700">
           Prescription Form
         </div>
-
         <h1 className="text-base font-bold uppercase tracking-wide text-slate-900">
           JOHN EMMANUEL L. ONG, M.D.
         </h1>
-
         <p className="text-xs text-slate-600">Ears, Nose, Throat</p>
         <p className="text-xs text-slate-600">
           Facial Plastic and Cosmetic Surgery
@@ -275,29 +263,23 @@ function PrescriptionTemplate({
           Mon-Sat 9am-6pm By Appointment
         </p>
       </div>
-
       <div className="mb-5 h-px bg-slate-200" />
-
       <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700">
         <div className="flex flex-wrap justify-between gap-3">
           <p>Name: {patient.name}</p>
           <p>Age: {cleanText(patient.age)}</p>
           <p>Sex: {cleanText(patient.gender)}</p>
         </div>
-
         <div className="mt-2 flex flex-wrap justify-between gap-3">
           <p>Address: {cleanText(patient.address)}</p>
           <p>Date: {formatDate(new Date())}</p>
         </div>
-
         {soapNote?.diagnosis && (
           <p className="mt-2">Diagnosis: {soapNote.diagnosis}</p>
         )}
       </div>
-
       <div className="flex gap-4">
         <div className="text-6xl font-serif leading-none text-cyan-700">℞</div>
-
         <div className="flex-1 space-y-4 text-sm">
           {prescriptions.length > 0 ? (
             prescriptions.map((rx, idx) => (
@@ -308,13 +290,11 @@ function PrescriptionTemplate({
                 <p className="font-semibold text-slate-900">
                   {getPrescriptionName(rx)}
                 </p>
-
                 {getPrescriptionMeta(rx) && (
                   <p className="mt-1 text-slate-600">
                     {getPrescriptionMeta(rx)}
                   </p>
                 )}
-
                 {rx.instructions && (
                   <p className="mt-1 whitespace-pre-wrap text-slate-600">
                     {rx.instructions}
@@ -327,7 +307,6 @@ function PrescriptionTemplate({
           )}
         </div>
       </div>
-
       <div className="mt-16 text-sm text-slate-700">
         <div className="flex justify-end">
           <div className="text-center">
@@ -335,7 +314,6 @@ function PrescriptionTemplate({
             <p className="mt-1 font-medium">John Emmanuel L. Ong, M.D.</p>
           </div>
         </div>
-
         <div className="mt-4">
           <p>Lic No: ____________________</p>
           <p>PTR No: ____________________</p>
@@ -353,7 +331,6 @@ function MedicalCertificate({
   soapNote: SoapNote | null;
 }) {
   const diagnosticImages = getDiagnosticImages(soapNote);
-
   return (
     <div className="report-content mx-auto w-full max-w-[860px] rounded-[28px] border border-slate-200 bg-white p-8 text-[13px] leading-relaxed shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:mx-0 print:max-w-full print:rounded-none print:border-none print:p-0 print:shadow-none">
       <div className="mb-6 flex items-start justify-between gap-6">
@@ -361,13 +338,11 @@ function MedicalCertificate({
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">
             LOGO
           </div>
-
           <div>
             <p className="font-bold tracking-wide text-slate-900">CENTRA</p>
             <p className="text-[11px] text-slate-600">ENT & Aesthetic Clinic</p>
           </div>
         </div>
-
         <div className="text-right text-[11px] leading-tight text-slate-600">
           <p className="font-bold text-slate-900">
             JOHN EMMANUEL ONG, MD, FPAAS, FICS, FPFCS
@@ -377,23 +352,18 @@ function MedicalCertificate({
           <p>Mon-Sat 9AM-5PM</p>
         </div>
       </div>
-
       <div className="mb-4 h-px bg-slate-200" />
-
       <div className="mb-5">
         <p className="inline-block rounded-lg border border-slate-300 bg-slate-50 px-4 py-1 text-slate-700">
           {formatDate(new Date())}
         </p>
         <p className="mt-1 text-[10px] text-slate-500">Date</p>
       </div>
-
       <h2 className="mb-6 text-center text-lg font-bold tracking-[0.24em] text-slate-900">
         MEDICAL CERTIFICATE
       </h2>
-
       <div className="space-y-4 text-slate-700">
         <p>To whom it may concern:</p>
-
         <p>
           This is to certify that{" "}
           <span className="border-b border-slate-800 px-4 font-semibold text-slate-900">
@@ -402,39 +372,32 @@ function MedicalCertificate({
           , {cleanText(patient.age)} years old, {cleanText(patient.gender)}, was
           seen and evaluated at Centra Clinic PH.
         </p>
-
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="font-semibold text-slate-900">Clinical Information</p>
-
           <div className="mt-3 space-y-2">
             <p>
               <span className="font-semibold">Chief Complaint:</span>{" "}
               {cleanText(soapNote?.chiefComplaint)}
             </p>
-
             <p>
               <span className="font-semibold">History of Illness:</span>{" "}
               {cleanText(soapNote?.historyOfIllness)}
             </p>
-
             <p>
               <span className="font-semibold">Diagnosis / Impression:</span>{" "}
               {cleanText(soapNote?.diagnosis)}
             </p>
-
             <p>
               <span className="font-semibold">Remarks:</span>{" "}
               {cleanText(soapNote?.remarks)}
             </p>
           </div>
         </div>
-
         {diagnosticImages.length > 0 && (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="mb-3 font-semibold text-slate-900">
               Diagnostic Attachment
             </p>
-
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {diagnosticImages.map((image, index) => (
                 <img
@@ -447,20 +410,17 @@ function MedicalCertificate({
             </div>
           </div>
         )}
-
         <p>
           Recommendation:{" "}
           <span className="border-b border-slate-800 px-4 font-semibold text-slate-900">
             {soapNote?.plan || soapNote?.followUp || "As clinically advised"}
           </span>
         </p>
-
         <p>
           This certificate is issued upon the request of the patient for whatever
           purpose it may serve, excluding legal matters.
         </p>
       </div>
-
       <div className="mt-12 text-right">
         <p className="inline-block border-b border-slate-800 px-10 font-semibold text-slate-900">
           Dr. John Emmanuel Ong
@@ -472,6 +432,7 @@ function MedicalCertificate({
   );
 }
 
+// ---------- MAIN PAGE COMPONENT (UI IMPROVED) ----------
 export default function ReportPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -496,9 +457,9 @@ export default function ReportPage() {
   const [error, setError] = useState("");
 
   const tabs = [
-    { key: "medical" as const, label: "Medical History" },
-    { key: "prescription" as const, label: "Prescription" },
-    { key: "medcert" as const, label: "Medical Certificate" },
+    { key: "medical" as const, label: "Medical History", icon: FileText },
+    { key: "prescription" as const, label: "Prescription", icon: FileText },
+    { key: "medcert" as const, label: "Medical Certificate", icon: FileText },
   ];
 
   const reportTitle = useMemo(() => {
@@ -509,9 +470,7 @@ export default function ReportPage() {
 
   const filteredPatients = useMemo(() => {
     const q = patientSearch.toLowerCase().trim();
-
     if (!q) return patients;
-
     return patients.filter(
       (p) =>
         p.name?.toLowerCase().includes(q) ||
@@ -528,39 +487,21 @@ export default function ReportPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadPatients() {
       try {
         setLoadingPatients(true);
-
-        const res = await fetch(patientListApi, {
-          method: "GET",
-          cache: "no-store",
-        });
-
+        const res = await fetch(patientListApi, { method: "GET", cache: "no-store" });
         const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load patients.");
-        }
-
-        if (!cancelled) {
-          setPatients(Array.isArray(json?.patients) ? json.patients : []);
-        }
+        if (!res.ok) throw new Error(json?.error || "Failed to load patients.");
+        if (!cancelled) setPatients(Array.isArray(json?.patients) ? json.patients : []);
       } catch (err) {
         console.error("[REPORT_PATIENTS_LOAD]", err);
       } finally {
-        if (!cancelled) {
-          setLoadingPatients(false);
-        }
+        if (!cancelled) setLoadingPatients(false);
       }
     }
-
     void loadPatients();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [patientListApi]);
 
   useEffect(() => {
@@ -570,45 +511,26 @@ export default function ReportPage() {
       setError("");
       return;
     }
-
     let cancelled = false;
-
     async function loadReport() {
       try {
         setLoading(true);
         setError("");
-
-        const res = await fetch(`/api/reports/${patientId}`, {
-          method: "GET",
-          cache: "no-store",
-        });
-
+        const res = await fetch(`/api/reports/${patientId}`, { method: "GET", cache: "no-store" });
         const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load report.");
-        }
-
-        if (!cancelled) {
-          setData(json);
-        }
+        if (!res.ok) throw new Error(json?.error || "Failed to load report.");
+        if (!cancelled) setData(json);
       } catch (err) {
         if (!cancelled) {
           setData(null);
           setError(err instanceof Error ? err.message : "Failed to load report.");
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
-
     void loadReport();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [patientId]);
 
   const selectPatient = (id: string) => {
@@ -622,203 +544,236 @@ export default function ReportPage() {
     window.print();
   };
 
+  const clearPatient = () => {
+    setPatientId("");
+    setData(null);
+    router.push(reportPath);
+  };
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_22%),linear-gradient(to_bottom,_#f8fafc,_#eef6ff)] print:bg-white">
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl print:hidden">
-        <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Patient Reports
-            </h1>
-            <p className="text-sm text-slate-500">
-              Print or save patient documents as PDF.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {tabs.map((tab) => {
-              const active = template === tab.key;
-
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setTemplate(tab.key)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    active
-                      ? "bg-cyan-600 text-white shadow-lg shadow-cyan-200"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => window.print()}
-              disabled={!data}
-              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Print
-            </button>
-
-            <button
-              onClick={saveAsPDF}
-              disabled={!data}
-              className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Save as PDF
-            </button>
-
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50/30 print:bg-white">
+      {/* -------- STICKY HEADER (modern two‑row layout) -------- */}
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl print:hidden">
+        <div className="px-6 py-3">
+          {/* Row 1: Title + Back */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-cyan-600" />
+                Patient Reports
+              </h1>
+              <p className="text-sm text-slate-500">
+                {patientId && data ? (
+                  <>
+                    Showing records for{" "}
+                    <span className="font-medium text-slate-700">{data.patient.name}</span>
+                    <button
+                      onClick={clearPatient}
+                      className="ml-2 text-cyan-600 hover:underline text-xs font-medium"
+                    >
+                      Change
+                    </button>
+                  </>
+                ) : (
+                  "Generate and manage patient documents"
+                )}
+              </p>
+            </div>
             <button
               onClick={() => router.push(patientsBackPath)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition"
             >
+              <ArrowLeft size={16} />
               Back
             </button>
+          </div>
+
+          {/* Row 2: Tabs (segmented control) + Actions */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex rounded-full bg-slate-100 p-1">
+              {tabs.map((tab) => {
+                const active = template === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setTemplate(tab.key)}
+                    className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                      active
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveAsPDF}
+                disabled={!data}
+                className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save size={16} />
+                Save as PDF
+              </button>
+              <button
+                onClick={() => window.print()}
+                disabled={!data}
+                className="flex items-center gap-1.5 rounded-full bg-cyan-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
-        {!patientId && (
-          <div className="rounded-[32px] border border-white/70 bg-white/80 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-sm print:hidden">
+        {!patientId ? (
+          // ---------- PATIENT SELECTION ----------
+          <div className="rounded-2xl border border-white/70 bg-white/80 p-6 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm print:hidden">
             <div className="mb-5">
-              <p className="text-sm font-medium text-cyan-700">
-                Select Patient
-              </p>
+              <p className="text-sm font-medium text-cyan-700">Select Patient</p>
               <h2 className="text-xl font-bold text-slate-900">
                 Choose a patient to generate reports
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Search by patient name, email, or ID.
+                Search by name, email, or ID
               </p>
             </div>
 
-            <input
-              value={patientSearch}
-              onChange={(e) => setPatientSearch(e.target.value)}
-              placeholder="Search patient..."
-              className="mb-5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-            />
+            {/* Search input with icon */}
+            <div className="relative mb-5">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                placeholder="Search patient..."
+                className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              />
+            </div>
 
             {loadingPatients ? (
-              <p className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                Loading patients...
-              </p>
+              <div className="flex justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+              </div>
             ) : filteredPatients.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredPatients.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => selectPatient(p.id)}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-200 hover:bg-cyan-50"
+                    className="group rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-200 hover:shadow-md hover:shadow-cyan-100/50"
                   >
-                    <p className="font-semibold text-slate-900">
-                      {p.name || "N/A"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {p.email || "No email"}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-400">
-                      Patient ID: {p.id.slice(0, 8)}
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
+                        <User size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 group-hover:text-cyan-700 transition">
+                          {p.name || "N/A"}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-1 text-sm text-slate-500">
+                          <Mail size={14} />
+                          <span className="truncate">{p.email || "No email"}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          ID: {p.id.slice(0, 8)}
+                        </p>
+                      </div>
+                    </div>
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                No patients found.
-              </p>
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                No patients found
+              </div>
             )}
           </div>
-        )}
-
-        {patientId && loading && (
-          <div className="rounded-[32px] border border-white/70 bg-white/80 p-8 text-center shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-sm print:hidden">
-            <p className="text-sm font-semibold text-slate-700">
-              Loading report...
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              Please wait while we fetch patient records.
-            </p>
-          </div>
-        )}
-
-        {patientId && error && !loading && (
-          <div className="rounded-[32px] border border-red-100 bg-white p-8 text-center shadow-sm print:hidden">
-            <h2 className="text-lg font-bold text-slate-900">
-              Report unavailable
-            </h2>
-            <p className="mt-2 text-sm text-red-500">{error}</p>
-
-            <button
-              onClick={() => {
-                setPatientId("");
-                setError("");
-                router.push(reportPath);
-              }}
-              className="mt-5 rounded-2xl bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Select Another Patient
-            </button>
-          </div>
-        )}
-
-        {patientId && data && !loading && !error && (
-          <div className="rounded-[32px] border border-white/70 bg-white/60 p-4 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-6 lg:p-8 print:border-none print:bg-white print:p-0 print:shadow-none print:backdrop-blur-none">
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-              <div>
-                <p className="text-sm font-medium text-cyan-700">
-                  Report Preview
+        ) : (
+          // ---------- REPORT PREVIEW ----------
+          <>
+            {loading && (
+              <div className="rounded-2xl border border-white/70 bg-white/80 p-8 text-center shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm print:hidden">
+                <div className="flex justify-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-slate-700">
+                  Loading report...
                 </p>
-
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {reportTitle}
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Patient: {data.patient.name}
+                <p className="mt-1 text-sm text-slate-400">
+                  Please wait while we fetch patient records.
                 </p>
               </div>
+            )}
 
-              <button
-                onClick={() => {
-                  setPatientId("");
-                  setData(null);
-                  router.push(reportPath);
-                }}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
-              >
-                Change Patient
-              </button>
-            </div>
+            {error && !loading && (
+              <div className="rounded-2xl border border-red-100 bg-white p-8 text-center shadow-sm print:hidden">
+                <h2 className="text-lg font-bold text-slate-900">
+                  Report unavailable
+                </h2>
+                <p className="mt-2 text-sm text-red-500">{error}</p>
+                <button
+                  onClick={clearPatient}
+                  className="mt-5 rounded-2xl bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Select Another Patient
+                </button>
+              </div>
+            )}
 
-            <div ref={reportRef} className="space-y-6 bg-white">
-              {template === "medical" && (
-                <MedicalHistoryTemplate
-                  patient={data.patient}
-                  medicalHistories={data.medicalHistories}
-                />
-              )}
+            {data && !loading && !error && (
+              <div className="rounded-2xl border border-white/70 bg-white/60 p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-6 lg:p-8 print:border-none print:bg-white print:p-0 print:shadow-none print:backdrop-blur-none">
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+                  <div>
+                    <p className="text-sm font-medium text-cyan-700">
+                      Report Preview
+                    </p>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      {reportTitle}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Patient: {data.patient.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={clearPatient}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Change Patient
+                  </button>
+                </div>
 
-              {template === "prescription" && (
-                <PrescriptionTemplate
-                  patient={data.patient}
-                  prescriptions={data.prescriptions}
-                  soapNote={data.latestSoapNote}
-                />
-              )}
-
-              {template === "medcert" && (
-                <MedicalCertificate
-                  patient={data.patient}
-                  soapNote={data.latestSoapNote}
-                />
-              )}
-            </div>
-          </div>
+                <div ref={reportRef} className="space-y-6 bg-white">
+                  {template === "medical" && (
+                    <MedicalHistoryTemplate
+                      patient={data.patient}
+                      medicalHistories={data.medicalHistories}
+                    />
+                  )}
+                  {template === "prescription" && (
+                    <PrescriptionTemplate
+                      patient={data.patient}
+                      prescriptions={data.prescriptions}
+                      soapNote={data.latestSoapNote}
+                    />
+                  )}
+                  {template === "medcert" && (
+                    <MedicalCertificate
+                      patient={data.patient}
+                      soapNote={data.latestSoapNote}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

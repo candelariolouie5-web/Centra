@@ -1,6 +1,6 @@
 "use client";
- 
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import {
   XMarkIcon,
   ChevronDownIcon,
@@ -23,8 +23,8 @@ import {
   DocumentTextIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/solid";
-import Footer from "../../components/Footer"; // ← Footer import
- 
+import Footer from "../../components/Footer";
+
 // ---------- TYPES ----------
 type ServiceIconKey =
   | "EarIcon"
@@ -41,12 +41,12 @@ type ServiceIconKey =
   | "SkinIcon"
   | "FacialRejuvenationIcon"
   | "VestibularIcon";
- 
+
 interface FAQ {
   question: string;
   answer: string;
 }
- 
+
 interface ServiceDetails {
   heroImage: string;
   overview: string;
@@ -59,439 +59,19 @@ interface ServiceDetails {
   risks: string;
   faqs: FAQ[];
 }
- 
+
 interface Service {
   id: string;
   category: string;
-  title: string;
+  name?: string;        // from DB
+  title: string;        // for compatibility
   description: string;
   icon: ServiceIconKey;
+  status: "Active" | "Inactive";
+  image?: string;       // from DB
   details: ServiceDetails;
 }
- 
-// ---------- SERVICE DATA ----------
-const servicesData: Service[] = [
-  // ENT Services
-  {
-    id: "ear-consultation",
-    category: "ENT Services",
-    title: "Ear Consultation",
-    description: "Comprehensive evaluation and treatment for ear-related conditions.",
-    icon: "EarIcon",
-    details: {
-      heroImage: "/ear.jpg",
-      overview:
-        "Ear consultation involves a thorough examination of the ear canal, eardrum, and hearing function. Our specialists diagnose and manage conditions such as hearing loss, ear infections, tinnitus, and balance disorders.",
-      idealCandidates: [
-        "Patients with hearing difficulties",
-        "Those suffering from recurring ear infections",
-        "Individuals experiencing tinnitus or vertigo",
-        "People with ear pain or discharge",
-      ],
-      procedureOptions: [
-        "Microscopic examination",
-        "Audiometry and tympanometry",
-        "Ear cleaning and microsuction",
-        "Medical management",
-      ],
-      benefits: [
-        "Accurate diagnosis",
-        "Personalized treatment plans",
-        "Improved quality of life",
-        "Prevention of complications",
-      ],
-      recoveryTimeline: "Most patients resume normal activities immediately after consultation. If procedures are done, recovery varies.",
-      beforeSurgery:
-        "No special preparation needed for consultation, but bring any relevant medical records.",
-      aftercare:
-        "Follow prescribed medication and attend follow-up appointments as advised.",
-      risks: "Minimal risks associated with diagnostic procedures; rare allergic reactions to medications.",
-      faqs: [
-        { question: "How long does an ear consultation take?", answer: "Typically 30-45 minutes." },
-        { question: "Is it painful?", answer: "No, the examination is painless." },
-        { question: "Do I need a referral?", answer: "Not necessarily; you can book directly." },
-      ],
-    },
-  },
-  {
-    id: "nose-consultation",
-    category: "ENT Services",
-    title: "Nose Consultation",
-    description: "Expert evaluation of nasal and sinus issues.",
-    icon: "NoseIcon",
-    details: {
-      heroImage: "/s.jpg",
-      overview:
-        "Nose consultation addresses nasal obstruction, sinusitis, allergies, and breathing difficulties. Our ENT specialists use advanced endoscopic techniques to assess and treat nasal conditions.",
-      idealCandidates: [
-        "Chronic nasal congestion",
-        "Sinus pain or pressure",
-        "Frequent nosebleeds",
-        "Loss of smell",
-      ],
-      procedureOptions: ["Nasal endoscopy", "Allergy testing", "CT scan (if needed)", "Medical therapy"],
-      benefits: ["Clearer breathing", "Reduced sinus infections", "Better sleep quality"],
-      recoveryTimeline: "Minor discomfort may occur after endoscopy; most return to normal within a day.",
-      beforeSurgery: "Avoid nasal sprays or decongestants for 24 hours before procedure.",
-      aftercare: "Use saline sprays as recommended; avoid strenuous activity for 48 hours.",
-      risks: "Rare bleeding or infection; endoscopic procedures are generally safe.",
-      faqs: [
-        { question: "Will I need imaging?", answer: "Sometimes, if sinus disease is suspected." },
-        { question: "How soon will I see improvement?", answer: "Many patients notice relief within days." },
-      ],
-    },
-  },
-  {
-    id: "throat-consultation",
-    category: "ENT Services",
-    title: "Throat Consultation",
-    description: "Diagnosis and management of throat and voice disorders.",
-    icon: "ThroatIcon",
-    details: {
-      heroImage: "/y.jpg",
-      overview:
-        "Throat consultation covers voice problems, swallowing difficulties, tonsillitis, and laryngeal conditions. We perform laryngoscopy and other diagnostic procedures to pinpoint issues.",
-      idealCandidates: [
-        "Hoarseness lasting more than 2 weeks",
-        "Sore throat not responding to treatment",
-        "Swallowing pain or difficulty",
-        "Frequent tonsillitis",
-      ],
-      procedureOptions: ["Indirect laryngoscopy", "Flexible laryngoscopy", "Stroboscopy", "Voice therapy"],
-      benefits: ["Improved voice quality", "Safe swallowing", "Early detection of serious conditions"],
-      recoveryTimeline: "Usually no downtime; voice rest may be recommended after certain procedures.",
-      beforeSurgery: "Avoid eating or drinking for 2 hours before laryngoscopy.",
-      aftercare: "Rest your voice; stay hydrated.",
-      risks: "Very low risk; slight gagging during examination.",
-      faqs: [
-        { question: "Is the examination uncomfortable?", answer: "Mild discomfort, but it's brief." },
-        { question: "Can I eat after?", answer: "Yes, once the anesthetic wears off." },
-      ],
-    },
-  },
-  {
-    id: "endoscopy",
-    category: "ENT Services",
-    title: "Endoscopy",
-    description: "Minimally invasive diagnostic and surgical procedures.",
-    icon: "EndoscopyIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?endoscopy,scope",
-      overview:
-        "Endoscopy allows direct visualization of the upper aerodigestive tract. It is used for both diagnosis and treatment of various ENT conditions.",
-      idealCandidates: [
-        "Patients with unexplained swallowing issues",
-        "Suspected tumors or polyps",
-        "Chronic cough or throat clearing",
-        "Evaluation of vocal cord function",
-      ],
-      procedureOptions: ["Flexible nasopharyngoscopy", "Rigid laryngoscopy", "Biopsy", "Stroboscopy"],
-      benefits: ["Accurate diagnosis", "Minimal discomfort", "Quick recovery"],
-      recoveryTimeline: "Most return to normal activities the same day.",
-      beforeSurgery: "Follow fasting instructions if sedation is used.",
-      aftercare: "Rest and avoid hot liquids for a few hours.",
-      risks: "Rare perforation or bleeding; infection is uncommon.",
-      faqs: [
-        { question: "Do I need anesthesia?", answer: "Usually topical anesthetic is used; sedation may be offered." },
-        { question: "How long does it take?", answer: "About 15–20 minutes." },
-      ],
-    },
-  },
-  {
-    id: "hearing-assessment",
-    category: "ENT Services",
-    title: "Hearing Assessment",
-    description: "Comprehensive evaluation of hearing ability.",
-    icon: "HearingIcon",
-    details: {
-      heroImage: "/image.png",
-      overview:
-        "Hearing assessment includes pure-tone audiometry, speech testing, and tympanometry to evaluate hearing sensitivity and middle ear function.",
-      idealCandidates: [
-        "Adults and children with suspected hearing loss",
-        "Those exposed to occupational noise",
-        "Patients with tinnitus",
-        "Pre-employment and routine screenings",
-      ],
-      procedureOptions: ["Audiometry", "Speech audiometry", "Impedance testing", "Otoacoustic emissions"],
-      benefits: ["Early detection", "Appropriate hearing aid selection", "Protection of remaining hearing"],
-      recoveryTimeline: "No recovery time needed; results are immediate.",
-      beforeSurgery: "No special preparation; avoid loud noise for 12 hours prior.",
-      aftercare: "Follow up with audiologist for hearing aid fitting if needed.",
-      risks: "None; non-invasive.",
-      faqs: [
-        { question: "Is the test painful?", answer: "No, it's completely painless." },
-        { question: "How long does it take?", answer: "About 30 minutes." },
-      ],
-    },
-  },
-  {
-    id: "vestibular-rehab",
-    category: "ENT Services",
-    title: "Vestibular Rehabilitation",
-    description: "Specialized therapy for balance and dizziness disorders.",
-    icon: "VestibularIcon",
-    details: {
-      heroImage: "/Clean.jpg",
-      overview:
-        "Vestibular rehabilitation is a specialized therapy designed to treat balance problems and dizziness caused by inner ear disorders. Our therapists use customized exercises to retrain the brain to compensate for vestibular dysfunction.",
-      idealCandidates: [
-        "Patients with benign paroxysmal positional vertigo (BPPV)",
-        "Those with vestibular neuritis or labyrinthitis",
-        "Individuals with chronic dizziness or imbalance",
-        "People who experience motion sensitivity",
-      ],
-      procedureOptions: [
-        "Canalith repositioning maneuvers (Epley, Semont)",
-        "Balance training exercises",
-        "Gaze stabilization exercises",
-        "Habituation exercises",
-      ],
-      benefits: ["Reduced dizziness and vertigo", "Improved balance and stability", "Increased confidence in movement", "Reduced risk of falls"],
-      recoveryTimeline: "Improvement is often seen within 2–4 weeks, with full results in 3–6 months.",
-      beforeSurgery: "No special preparation; bring a list of current medications.",
-      aftercare: "Continue home exercises as prescribed; follow-up sessions as needed.",
-      risks: "Minimal; some may experience temporary increase in dizziness during initial sessions.",
-      faqs: [
-        { question: "How long are the sessions?", answer: "Typically 45–60 minutes." },
-        { question: "Is it painful?", answer: "No, but some exercises may cause mild discomfort." },
-        { question: "Will I need to do exercises at home?", answer: "Yes, daily exercises are crucial for best results." },
-      ],
-    },
-  },
-  // Aesthetic Services
-  {
-    id: "rhinoplasty",
-    category: "Aesthetic Services",
-    title: "Rhinoplasty",
-    description: "Surgical reshaping of the nose for cosmetic and functional improvement.",
-    icon: "RhinoplastyIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?rhinoplasty,nose",
-      overview:
-        "Rhinoplasty, or nose surgery, improves the appearance and function of the nose. It can correct breathing problems and enhance facial harmony.",
-      idealCandidates: [
-        "Individuals unhappy with nose shape",
-        "Those with breathing difficulties",
-        "Patients with nasal deformities from injury",
-        "Adults with fully developed nasal structures",
-      ],
-      procedureOptions: ["Open rhinoplasty", "Closed rhinoplasty", "Tip refinement", "Septoplasty combined"],
-      benefits: ["Improved facial balance", "Enhanced breathing", "Increased self-confidence"],
-      recoveryTimeline: "Swelling and bruising subside in 1–2 weeks; final results in 6–12 months.",
-      beforeSurgery:
-        "Stop smoking and avoid blood-thinning medications; arrange for transportation after surgery.",
-      aftercare:
-        "Keep head elevated, avoid strenuous activity, and attend follow-up appointments.",
-      risks: "Infection, bleeding, asymmetry, or scarring; rare.",
-      faqs: [
-        { question: "Will I have visible scars?", answer: "Scars are well-hidden inside the nose or in natural creases." },
-        { question: "How long is recovery?", answer: "Most return to work in 1–2 weeks." },
-        { question: "Is rhinoplasty covered by insurance?", answer: "Functional components may be covered; cosmetic portions are not." },
-      ],
-    },
-  },
-  {
-    id: "blepharoplasty",
-    category: "Aesthetic Services",
-    title: "Blepharoplasty",
-    description: "Eyelid surgery to rejuvenate the eye area.",
-    icon: "BlepharoplastyIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?eyelid,surgery",
-      overview:
-        "Blepharoplasty removes excess skin and fat from the upper and lower eyelids, resulting in a more youthful and alert appearance.",
-      idealCandidates: [
-        "Drooping upper eyelids affecting vision",
-        "Puffy lower eyelids",
-        "Fine wrinkles around eyes",
-        "Healthy individuals with realistic expectations",
-      ],
-      procedureOptions: ["Upper eyelid surgery", "Lower eyelid surgery", "Transconjunctival approach", "Laser blepharoplasty"],
-      benefits: ["Brighter, more open eyes", "Improved vision (if obstructed)", "Long-lasting results"],
-      recoveryTimeline: "Swelling and bruising peak at 2–3 days; stitches removed in 5–7 days.",
-      beforeSurgery:
-        "Avoid aspirin and anti-inflammatory drugs; arrange for post-operative care.",
-      aftercare:
-        "Use cold compresses, keep head elevated, and avoid rubbing eyes.",
-      risks: "Infection, dry eyes, asymmetry, or ectropion (rare).",
-      faqs: [
-        { question: "Will I have scars?", answer: "Incision lines are placed in natural creases and fade over time." },
-        { question: "How long before I can wear makeup?", answer: "Usually after 1–2 weeks." },
-      ],
-    },
-  },
-  {
-    id: "otoplasty",
-    category: "Aesthetic Services",
-    title: "Otoplasty",
-    description: "Surgery to correct prominent or misshapen ears.",
-    icon: "OtoplastyIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?ear,surgery",
-      overview:
-        "Otoplasty reshapes the ears, setting them closer to the head for a natural appearance. It can be performed on both children and adults.",
-      idealCandidates: [
-        "Children over age 5 (when ears are fully grown)",
-        "Adults with prominent ears",
-        "Individuals with asymmetrical ears",
-        "Those in good health",
-      ],
-      procedureOptions: ["Cartilage reshaping", "Cartilage removal", "Suturing techniques", "Combined approaches"],
-      benefits: ["Improved ear position", "Enhanced facial balance", "Boosted self-esteem"],
-      recoveryTimeline: "Bandages worn for 1 week; swelling subsides in 2 weeks; results visible gradually.",
-      beforeSurgery: "Avoid blood-thinners; arrange for time off work/school.",
-      aftercare: "Keep head elevated; avoid sleeping on the ears.",
-      risks: "Infection, bleeding, or recurrence of prominence.",
-      faqs: [
-        { question: "Is otoplasty painful?", answer: "Discomfort is manageable with medication." },
-        { question: "Will I have to wear a headband?", answer: "Yes, for a few weeks to protect ears." },
-      ],
-    },
-  },
-  {
-    id: "botox",
-    category: "Aesthetic Services",
-    title: "Botox",
-    description: "Non-surgical injection to reduce wrinkles and fine lines.",
-    icon: "BotoxIcon",
-    details: {
-      heroImage: "/Cosmetic Procedure Close-Up.png",
-      overview:
-        "Botox injections temporarily relax facial muscles, smoothing dynamic wrinkles such as crow's feet and frown lines.",
-      idealCandidates: [
-        "Patients with moderate to severe facial wrinkles",
-        "Those seeking a non-invasive solution",
-        "People without allergies to botulinum toxin",
-        "Adults aged 18–65",
-      ],
-      procedureOptions: ["Forehead lines", "Glabellar lines", "Crow's feet", "Brow lift"],
-      benefits: ["Quick procedure", "Minimal downtime", "Natural-looking results", "Preventive aging effects"],
-      recoveryTimeline: "Results appear in 3–7 days; effects last 3–4 months.",
-      beforeSurgery: "Avoid alcohol and aspirin 24 hours prior.",
-      aftercare: "Do not rub or massage the treated area; avoid strenuous exercise for 24 hours.",
-      risks: "Bruising, headache, or temporary drooping of eyelid (rare).",
-      faqs: [
-        { question: "When will I see results?", answer: "Usually within 3–5 days." },
-        { question: "How long does it last?", answer: "About 3–4 months on average." },
-      ],
-    },
-  },
-  {
-    id: "fillers",
-    category: "Aesthetic Services",
-    title: "Fillers",
-    description: "Injectable fillers to restore volume and contour.",
-    icon: "FillersIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?fillers,injectable",
-      overview:
-        "Dermal fillers are gel-like substances injected beneath the skin to restore lost volume, smooth lines, and enhance facial contours.",
-      idealCandidates: [
-        "Patients with facial volume loss",
-        "Deep wrinkles or folds",
-        "Thin lips wanting augmentation",
-        "Those seeking non-surgical facial rejuvenation",
-      ],
-      procedureOptions: ["Hyaluronic acid fillers", "Calcium hydroxylapatite", "Poly-L-lactic acid", "Autologous fat transfer"],
-      benefits: ["Immediate results", "No downtime", "Customizable treatment", "Stimulates collagen production"],
-      recoveryTimeline: "Minimal swelling/bruising for 1–2 days; results last 6–18 months.",
-      beforeSurgery: "Avoid blood-thinners; inform about allergies.",
-      aftercare: "Avoid extreme temperatures and facial massage for 2 weeks.",
-      risks: "Infection, allergic reaction, lumps, or asymmetry.",
-      faqs: [
-        { question: "Are fillers painful?", answer: "Most contain lidocaine for comfort." },
-        { question: "How long do results last?", answer: "Varies by product, typically 6–18 months." },
-      ],
-    },
-  },
-  {
-    id: "thread-lift",
-    category: "Aesthetic Services",
-    title: "Thread Lift",
-    description: "Minimally invasive lift using dissolvable threads.",
-    icon: "ThreadLiftIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?threadlift",
-      overview:
-        "A thread lift involves inserting temporary sutures to lift and reposition sagging facial tissues, stimulating collagen production.",
-      idealCandidates: [
-        "Mild to moderate facial sagging",
-        "Patients not ready for facelift surgery",
-        "Those seeking subtle lift with minimal downtime",
-        "Aged 30–60",
-      ],
-      procedureOptions: ["Cog threads", "Smooth threads", "Screw threads", "Combination techniques"],
-      benefits: ["Immediate lift", "Stimulates natural collagen", "Recovery time is short", "Reversible"],
-      recoveryTimeline: "Swelling and bruising for 3–5 days; full effect in 2–3 months.",
-      beforeSurgery: "Stop aspirin and smoking; inform about skin conditions.",
-      aftercare: "Avoid chewing hard foods, facial massages, and sleeping on side.",
-      risks: "Infection, thread migration, puckering, or asymmetry.",
-      faqs: [
-        { question: "How long do threads last?", answer: "Threads dissolve in 6–18 months, but lift effect may persist." },
-        { question: "Is it painful?", answer: "Local anesthesia is used; mild discomfort after." },
-      ],
-    },
-  },
-  {
-    id: "skin-treatments",
-    category: "Aesthetic Services",
-    title: "Skin Treatments",
-    description: "Advanced skin rejuvenation and care procedures.",
-    icon: "SkinIcon",
-    details: {
-      heroImage: "/Gluta.jpg",
-      overview:
-        "Our skin treatments include chemical peels, laser therapy, microneedling, and custom facial rejuvenation plans to improve skin texture, tone, and clarity.",
-      idealCandidates: [
-        "Patients with sun damage or pigmentation",
-        "Acne scars or fine lines",
-        "Dull or aged skin",
-        "Those seeking non-invasive skin improvement",
-      ],
-      procedureOptions: ["Chemical peels", "Fractional laser", "Microneedling", "PRP facelift"],
-      benefits: ["Brighter skin", "Reduced pigmentation", "Smoother texture", "Stimulated collagen"],
-      recoveryTimeline: "Downtime varies from 1 day to 1 week depending on intensity.",
-      beforeSurgery: "Avoid sun exposure and retinol products 1 week before.",
-      aftercare: "Sun protection, gentle cleansing, and moisturizing.",
-      risks: "Redness, peeling, or hyperpigmentation (rare).",
-      faqs: [
-        { question: "How many sessions do I need?", answer: "Often 3–6 sessions for best results." },
-        { question: "Is it painful?", answer: "Topical anesthesia is used for comfort." },
-      ],
-    },
-  },
-  {
-    id: "facial-rejuvenation",
-    category: "Aesthetic Services",
-    title: "Facial Rejuvenation",
-    description: "Combination of non-surgical treatments for a youthful glow.",
-    icon: "FacialRejuvenationIcon",
-    details: {
-      heroImage: "https://source.unsplash.com/800x400/?facial,rejuvenation",
-      overview:
-        "Facial rejuvenation is a personalized combination of treatments including fillers, Botox, laser, and skin therapies to restore a fresh, youthful appearance without surgery.",
-      idealCandidates: [
-        "Patients seeking a non-surgical facial refresh",
-        "Those with mild to moderate signs of aging",
-        "Individuals who want minimal downtime",
-        "People with realistic expectations",
-      ],
-      procedureOptions: ["Combination of injectables", "Laser resurfacing", "Microneedling with PRP", "Chemical peels"],
-      benefits: ["Comprehensive rejuvenation", "Natural-looking results", "No general anesthesia", "Quick recovery"],
-      recoveryTimeline: "Downtime 2–7 days depending on intensity; final results over 3–6 months.",
-      beforeSurgery: "Avoid sun exposure and blood-thinners 1 week prior.",
-      aftercare: "Sun protection, gentle skincare, and follow-up appointments.",
-      risks: "Redness, swelling, or temporary discoloration; rare.",
-      faqs: [
-        { question: "How many sessions are needed?", answer: "Often 1–3 sessions for optimal results." },
-        { question: "Is it painful?", answer: "Topical anesthesia and nerve blocks ensure comfort." },
-        { question: "When can I resume normal activities?", answer: "Usually within 1 week." },
-      ],
-    },
-  },
-];
- 
+
 // Map icon string to Heroicon component
 const iconMap: Record<ServiceIconKey, React.ComponentType<{ className?: string }>> = {
   EarIcon: SpeakerWaveIcon,
@@ -509,28 +89,53 @@ const iconMap: Record<ServiceIconKey, React.ComponentType<{ className?: string }
   FacialRejuvenationIcon: DocumentTextIcon,
   VestibularIcon: UserGroupIcon,
 };
- 
+
 // ---------- MAIN COMPONENT ----------
 export default function ServicesSection() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [expandedAccordion, setExpandedAccordion] = useState<string | null>(null);
- 
+
+  // Fetch services from API
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const res = await fetch("/api/services");
+        if (res.ok) {
+          const data = await res.json();
+          // Only show active services
+          const activeServices = data.filter((s: Service) => s.status === "Active");
+          setServices(activeServices);
+        } else {
+          console.error("Failed to fetch services");
+        }
+      } catch (error) {
+        console.error("Error fetching services:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
   const openModal = (service: Service) => {
     setSelectedService(service);
     setIsModalOpen(true);
     setExpandedAccordion(null);
   };
- 
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedService(null);
   };
- 
+
   const toggleAccordion = (sectionId: string) => {
     setExpandedAccordion(expandedAccordion === sectionId ? null : sectionId);
   };
- 
+
   const getModalSections = (service: Service) => {
     return [
       { id: "overview", title: "Overview", content: service.details.overview },
@@ -603,9 +208,33 @@ export default function ServicesSection() {
       },
     ];
   };
- 
+
   const modalSections = selectedService ? getModalSections(selectedService) : [];
- 
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f7f6f2] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+          <p className="mt-4 text-gray-500">Loading services...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No services
+  if (services.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#f7f6f2] flex items-center justify-center">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-semibold">No Services Available</h1>
+          <p className="text-gray-500 mt-2">Please check back later.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="relative overflow-hidden py-24 sm:py-32">
@@ -637,11 +266,13 @@ export default function ServicesSection() {
                 </div>
               </div>
             </div>
- 
-            {/* Right side - Service Cards (no stagger, just plain grid) */}
+
+            {/* Right side - Service Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {servicesData.map((service) => {
+              {services.map((service) => {
                 const IconComponent = iconMap[service.icon] || Square3Stack3DIcon;
+                // Use name from DB if available, fallback to title
+                const displayTitle = service.name || service.title;
                 return (
                   <div
                     key={service.id}
@@ -653,7 +284,7 @@ export default function ServicesSection() {
                       <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors duration-300">
                         <IconComponent className="h-6 w-6" />
                       </div>
-                      <h3 className="mt-4 text-lg font-semibold text-gray-900">{service.title}</h3>
+                      <h3 className="mt-4 text-lg font-semibold text-gray-900">{displayTitle}</h3>
                       <p className="mt-2 text-sm text-gray-600">{service.description}</p>
                       <p className="mt-3 text-sm font-medium text-teal-600 flex items-center gap-1 group-hover:gap-2 transition-all">
                         Learn More
@@ -667,8 +298,8 @@ export default function ServicesSection() {
           </div>
         </div>
       </div>
- 
-      {/* Modal / Slide-over Panel - with CSS transitions (no framer-motion) */}
+
+      {/* Modal / Slide-over Panel */}
       {isModalOpen && selectedService && (
         <div className="fixed inset-0 z-50 flex justify-end">
           {/* Backdrop */}
@@ -688,21 +319,21 @@ export default function ServicesSection() {
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
- 
+
             {/* Hero Image */}
             <div className="relative h-64 w-full overflow-hidden">
               <img
-                src={selectedService.details.heroImage}
+                src={selectedService.details.heroImage || selectedService.image || "/placeholder.jpg"}
                 alt={selectedService.title}
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
               <div className="absolute bottom-6 left-6 text-white">
                 <p className="text-sm font-medium text-teal-200">{selectedService.category}</p>
-                <h2 className="text-3xl font-bold">{selectedService.title}</h2>
+                <h2 className="text-3xl font-bold">{selectedService.name || selectedService.title}</h2>
               </div>
             </div>
- 
+
             {/* Content */}
             <div className="p-6 space-y-6">
               {/* Accordion sections */}
@@ -727,7 +358,7 @@ export default function ServicesSection() {
                   </div>
                 );
               })}
- 
+
               {/* Bottom Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-200">
                 <button className="w-full sm:w-auto rounded-md bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 transition-colors">
@@ -744,7 +375,7 @@ export default function ServicesSection() {
           </div>
         </div>
       )}
- 
+
       {/* ===== FOOTER ===== */}
       <Footer />
     </>

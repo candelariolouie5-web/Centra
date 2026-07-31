@@ -1,5 +1,19 @@
-'use client'
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
+
+// ---------- TYPES ----------
+interface BlogPost {
+  id: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  image: string;
+  date: string;
+  author: string;
+  status: "Published" | "Draft";
+  embedUrl?: string;
+}
 
 export default function CentraClinicFeatures() {
   const features = [
@@ -83,7 +97,7 @@ export default function CentraClinicFeatures() {
                 Work with us
               </h2>
               <p className="mt-8 text-lg leading-8 text-[#5f7b79] sm:text-xl">
-                We’re seeking passionate individuals who are eager to make an impact at Centra Clinic.
+                We're seeking passionate individuals who are eager to make an impact at Centra Clinic.
               </p>
             </div>
 
@@ -109,38 +123,79 @@ export default function CentraClinicFeatures() {
         </div>
       </section>
 
+      {/* Dynamic Blog Section */}
       <BlogSection />
     </>
   );
 }
 
+// ============================================================
+// BLOG SECTION - DYNAMIC (kumukuha mula sa /api/blog)
+// ============================================================
 function BlogSection() {
-  const posts = [
-    {
-      id: 1,
-      title: 'White Medicine Luhilo',
-      href: '#',
-      date: 'June 2, 2024',
-      author: { name: 'Dr. John Ong' },
-      imageUrl: '/white.jpg',
-    },
-    {
-      id: 2,
-      title: 'Hyaluronic Acid Fillers and Skinboosters',
-      href: '#',
-      date: 'May 8, 2024',
-      author: { name: 'Dr. John Ong' },
-      imageUrl: '/galderma.jpg',
-    },
-    {
-      id: 3,
-      title: 'Polynucleotide (PN) and PDRN',
-      href: '#',
-      date: 'October 11, 2024',
-      author: { name: 'Dr. John Ong' },
-      imageUrl: '/rejuran.jpg',
-    },
-  ];
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch blog posts from API
+  useEffect(() => {
+    const fetchBlogPosts = async () => {
+      try {
+        const res = await fetch("/api/blog");
+        if (res.ok) {
+          const data = await res.json();
+          // Only show published posts
+          const published = data.filter((p: BlogPost) => p.status === "Published");
+          setBlogPosts(published);
+        } else {
+          console.error("Failed to fetch blog posts");
+        }
+      } catch (error) {
+        console.error("Error fetching blog posts:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBlogPosts();
+  }, []);
+
+  // Helper to generate a consistent color based on title
+  const getColorFromTitle = (title: string) => {
+    const colors = [
+      "from-teal-400 to-teal-700",
+      "from-blue-400 to-blue-700",
+      "from-purple-400 to-purple-700",
+      "from-pink-400 to-pink-700",
+      "from-amber-400 to-amber-700",
+      "from-emerald-400 to-emerald-700",
+      "from-rose-400 to-rose-700",
+      "from-indigo-400 to-indigo-700",
+    ];
+    const index = title.length % colors.length;
+    return colors[index];
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <section className="bg-[#f7f6f2] py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-4xl font-bold tracking-tight text-[#0d2323] sm:text-5xl">
+              From the Blog
+            </h2>
+            <p className="mt-2 text-lg text-[#5f7b79]">
+              Learn how Centra Clinic PH enhances patient care.
+            </p>
+          </div>
+          <div className="mt-10 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+            <p className="mt-4 text-gray-500">Loading blog posts...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-[#f7f6f2] py-24 sm:py-32">
@@ -154,30 +209,51 @@ function BlogSection() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {posts.map((post) => (
-            <a
-              key={post.id}
-              href={post.href}
-              className="relative block rounded-lg overflow-hidden shadow-lg group"
-            >
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
-                style={{ backgroundImage: `url(${post.imageUrl})` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0d2323]/75 via-[#0d2323]/30 to-transparent" />
+        {blogPosts.length === 0 ? (
+          <div className="mt-10 text-center text-gray-500">
+            <p>No blog posts available yet. Check back soon!</p>
+          </div>
+        ) : (
+          <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {blogPosts.slice(0, 3).map((post) => {
+              const hasImage = post.image && post.image !== "";
+              const gradientColor = getColorFromTitle(post.title || "Blog");
+              const displayDate = post.date || "Date not set";
+              const displayAuthor = post.author || "CENTRA Clinic";
+              const displayExcerpt = post.excerpt || post.content?.substring(0, 80) + "..." || "Read more about this topic";
 
-              <div className="relative p-6 flex flex-col justify-end h-72">
-                <p className="text-xs text-[#e8f3f2]">
-                  {post.date} • {post.author.name}
-                </p>
-                <h3 className="mt-2 text-lg font-semibold text-white">
-                  {post.title}
-                </h3>
-              </div>
-            </a>
-          ))}
-        </div>
+              return (
+                <a
+                  key={post.id}
+                  href={`/blog/${post.id}`}
+                  className="relative block rounded-lg overflow-hidden shadow-lg group"
+                >
+                  {hasImage ? (
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+                      style={{ backgroundImage: `url(${post.image})` }}
+                    />
+                  ) : (
+                    <div className={`absolute inset-0 bg-gradient-to-br ${gradientColor}`} />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0d2323]/75 via-[#0d2323]/30 to-transparent" />
+
+                  <div className="relative p-6 flex flex-col justify-end h-72">
+                    <p className="text-xs text-[#e8f3f2]">
+                      {displayDate} • {displayAuthor}
+                    </p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">
+                      {post.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-white/80 line-clamp-2">
+                      {displayExcerpt}
+                    </p>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

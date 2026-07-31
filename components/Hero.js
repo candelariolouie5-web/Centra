@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   ArrowRight,
   Stethoscope,
@@ -11,6 +11,7 @@ import {
   Globe2,
   Star,
 } from "lucide-react";
+import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 const specialties = [
   {
@@ -59,11 +60,94 @@ const features = [
   },
 ];
 
-export default function Example() {
+export default function Hero({ announcements = [] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isBannerVisible, setIsBannerVisible] = useState(true);
+
+  // Banner handlers
+  const goToPrevious = () => {
+    setCurrentIndex((prev) => (prev === 0 ? announcements.length - 1 : prev - 1));
+  };
+
+  const goToNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % announcements.length);
+  };
+
+  const handleCloseBanner = () => {
+    setIsBannerVisible(false);
+  };
+
+  const currentAnnouncement = announcements[currentIndex];
+
   return (
     <div className="min-h-screen bg-[#f7f6f2] text-[#0d2323]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* HERO */}
+        {/* ANNOUNCEMENT BANNER */}
+        {isBannerVisible && announcements.length > 0 && currentAnnouncement && (
+          <div className="relative w-full bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-500 text-white shadow-lg overflow-hidden rounded-lg mt-4">
+            <div className="px-4 py-3 flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0 flex items-center gap-3">
+                {currentAnnouncement.bannerImage && (
+                  <img
+                    src={currentAnnouncement.bannerImage}
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                  />
+                )}
+                <div className="truncate">
+                  <p className="font-semibold text-sm sm:text-base truncate">
+                    {currentAnnouncement.title}
+                  </p>
+                  <p className="text-xs sm:text-sm text-teal-50 truncate">
+                    {currentAnnouncement.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {announcements.length > 1 && (
+                  <>
+                    <button
+                      onClick={goToPrevious}
+                      className="p-1 rounded-full hover:bg-white/20 transition"
+                      aria-label="Previous"
+                    >
+                      <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={goToNext}
+                      className="p-1 rounded-full hover:bg-white/20 transition"
+                      aria-label="Next"
+                    >
+                      <ChevronRightIcon className="w-5 h-5" />
+                    </button>
+                    <div className="flex gap-1 mx-1">
+                      {announcements.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentIndex(idx)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            idx === currentIndex ? "bg-white w-4" : "bg-white/50"
+                          }`}
+                          aria-label={`Go to slide ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={handleCloseBanner}
+                  className="p-1 rounded-full hover:bg-white/20 transition"
+                  aria-label="Close"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* HERO SECTION */}
         <section className="relative overflow-hidden py-10 sm:py-14 lg:py-16">
           <div
             aria-hidden="true"
