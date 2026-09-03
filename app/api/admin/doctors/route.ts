@@ -4,7 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma, getActiveDoctorCount, canDeactivateDoctor } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-// GET: List all doctors (ADMIN users)
+// GET: List all doctors
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-        const doctor = await prisma.user.create({
+    const doctor = await prisma.user.create({
       data: {
         name,
         email: username,
@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-
     return NextResponse.json({ success: true, doctor }, { status: 201 });
   } catch (error) {
     console.error("Error creating doctor:", error);
@@ -92,8 +91,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH: Toggle active status / Update doctor
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// PATCH: Toggle active status / Update doctor (NO PARAMS – get ID from body)
+export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -109,12 +108,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
     }
 
-    const doctorId = await params.then(p => p.id);
     const body = await request.json();
+    const { id, isActive, name } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Doctor ID is required" }, { status: 400 });
+    }
 
     const updateData: Partial<{ isActive: boolean; name: string }> = {};
-    if ('isActive' in body) updateData.isActive = body.isActive;
-    if ('name' in body) updateData.name = body.name;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (name) updateData.name = name;
 
     const force = request.nextUrl.searchParams.get('force') === 'true';
     if (updateData.isActive === false) {
@@ -125,18 +128,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const doctor = await prisma.user.update({
-      where: { id: doctorId },
+      where: { id },
       data: updateData,
       select: { id: true, name: true, email: true, isActive: true },
     });
 
     return NextResponse.json({ success: true, doctor }, { status: 200 });
-
   } catch (error) {
     console.error("Error updating doctor:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
-
-

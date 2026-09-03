@@ -1,5 +1,4 @@
 // app/api/auth/[...nextauth]/route.ts
-
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -81,14 +80,13 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    // ✅ MODIFIED: Added authorization.params.prompt
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
-          prompt: "select_account", // Force account picker every time
+          prompt: "select_account",
         },
       },
     }),

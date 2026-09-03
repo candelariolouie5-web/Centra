@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
@@ -13,11 +13,8 @@ export async function DELETE(
   }
 
   try {
-    const { id } = params;
-
-    // Optional: prevent deleting the last admin / yourself, but for secretary it's fine.
+    const { id } = await params;
     await prisma.user.delete({ where: { id } });
-
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/admin/secretaries/[id] error:", error);

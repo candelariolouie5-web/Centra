@@ -106,7 +106,6 @@ export async function getEligibleStaffByRole(
     return eligibleUsers;
   }
 
-  // @ts-ignore
   const blockedState = await getBlockedStateForDate(dateInput, db);
 
   if (role === "ADMIN") {
@@ -122,7 +121,7 @@ export async function getBusyAssignedUserIdsForSlot(
   dateInput: string | Date,
   time: string,
   db: DbClient = prisma
-) {
+): Promise<Set<string>> {
   const { start, end } = getDayRange(dateInput);
 
   const rows = await db.appointment.findMany({
@@ -208,7 +207,9 @@ export async function getAvailabilityForSlot(
     ...doctors.map((u: any) => u.id),
   ]);
 
-  const occupied = [...busyAssignedUserIds].filter((id) =>
+  // ✅ FIXED: cast to Set<string> to resolve type error
+  const busySet = busyAssignedUserIds as Set<string>;
+  const occupied = Array.from(busySet).filter((id) =>
     eligibleUserIds.has(id)
   ).length;
 

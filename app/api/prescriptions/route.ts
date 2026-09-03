@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if patient exists
     const patient = await prisma.patient.findUnique({
       where: { id: patientId },
       select: { id: true },
@@ -33,7 +32,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Find or create medicine (model name is 'medicine' in Prisma)
       let medicine = await tx.medicine.findFirst({
         where: {
           generic: generic.trim(),
@@ -52,16 +50,15 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Create SOAP note
+      // 🔥 FIX: Walang doctorId sa SoapNote model, kaya tanggalin natin
       const soapNote = await tx.soapNote.create({
         data: {
           patientId,
           chiefComplaint: "Prescription only",
-          doctorId: session.user.id,
+          // doctorId ay WALA sa schema, kaya hindi na natin isasama
         },
       });
 
-      // Create prescription – copy fields from medicine, no foreign key
       const prescription = await tx.prescription.create({
         data: {
           soapNoteId: soapNote.id,

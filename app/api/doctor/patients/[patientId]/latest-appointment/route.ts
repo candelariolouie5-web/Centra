@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ patientId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,19 +14,18 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { patientId } = await params;
 
-    if (!id) {
+    if (!patientId) {
       return NextResponse.json(
         { error: "Patient ID is required" },
         { status: 400 }
       );
     }
 
-    // Find the latest appointment for this patient
     const latestAppointment = await prisma.appointment.findFirst({
       where: {
-        patientId: id,
+        patientId: patientId,
         secretaryStatus: {
           notIn: ["CANCELLED", "NO_SHOW"],
         },

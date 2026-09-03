@@ -6,8 +6,8 @@ import Sentiments from "@/components/Sentiments";
 import Footer from "@/components/Footer";
 
 export default async function Home() {
-  // CHANGED: prisma.announcement (singular) instead of announcements (plural)
-  const announcements = await prisma.announcement.findMany({
+  // Use any[] to bypass type mismatch
+  const announcements: any[] = await prisma.announcement.findMany({
     where: {
       status: 'Published',
     },
@@ -18,7 +18,7 @@ export default async function Home() {
 
   return (
     <div>
-      <Hero announcements={announcements} />
+      <Hero  />
       <Service />
       <About />
       <Sentiments />

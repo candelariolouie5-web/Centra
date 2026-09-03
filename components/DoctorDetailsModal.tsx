@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React from 'react';
 
 interface Doctor {
   id: string;
@@ -11,7 +11,7 @@ interface Doctor {
 }
 
 const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.ReactElement> = {
     close: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -143,7 +143,6 @@ const DoctorDetailsModal = ({ open, onClose, doctor }: DoctorDetailsModalProps) 
         </div>
       </div>
 
-      {/* Add subtle animation */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.97) translateY(10px); }

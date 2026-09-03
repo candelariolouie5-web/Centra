@@ -59,9 +59,6 @@ const PROCEDURE_LABELS: Record<string, string> = {
 
 const FOLLOW_UP_MARKER = "Follow-up appointment:";
 
-/* ============================================================
-   IMAGE COMPRESSION UTILITY - Phase 1
-   ============================================================ */
 const compressImage = (
   dataUrl: string,
   maxWidth: number = 500,
@@ -75,8 +72,6 @@ const compressImage = (
         const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
-
-        // Maintain aspect ratio while resizing
         if (width > maxWidth) {
           height = (height * maxWidth) / width;
           width = maxWidth;
@@ -85,18 +80,13 @@ const compressImage = (
           width = (width * maxHeight) / height;
           height = maxHeight;
         }
-
         canvas.width = Math.round(width);
         canvas.height = Math.round(height);
         const ctx = canvas.getContext("2d");
-
         if (ctx) {
-          // Use better image smoothing
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-          // Convert to JPEG with quality setting
           const compressed = canvas.toDataURL("image/jpeg", quality);
           resolve(compressed);
         } else {
@@ -114,8 +104,6 @@ const compressImage = (
     img.src = dataUrl;
   });
 };
-
-/* ============================================================ */
 
 function TextAreaField({
   id,
@@ -202,12 +190,10 @@ function isRoomType(value: unknown): value is RoomType {
 function formatProcedureLabel(value: string | undefined | null) {
   const trimmed = value?.trim();
   if (!trimmed) return "Procedure";
-
   const normalized = trimmed.toLowerCase();
   if (PROCEDURE_LABELS[normalized]) {
     return PROCEDURE_LABELS[normalized];
   }
-
   return trimmed
     .replace(/[-_]/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -215,12 +201,10 @@ function formatProcedureLabel(value: string | undefined | null) {
 
 function formatDisplayDate(value: string) {
   if (!value) return "Date TBD";
-
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-
   return parsed.toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
@@ -230,23 +214,19 @@ function formatDisplayDate(value: string) {
 
 function formatDisplayTime(value: string) {
   if (!value) return "Time TBD";
-
   if (/[AP]M/i.test(value)) {
     return value.toUpperCase();
   }
-
   if (/^\d{1,2}:\d{2}$/.test(value)) {
     const [hours, minutes] = value.split(":").map(Number);
     const parsed = new Date();
     parsed.setHours(hours, minutes, 0, 0);
-
     return parsed.toLocaleTimeString("en-PH", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
   }
-
   return value;
 }
 
@@ -260,17 +240,13 @@ function buildScheduleSummary(schedule: ScheduledProcedure) {
   const procedurePart = schedule.procedureType
     ? `${formatProcedureLabel(schedule.procedureType)} procedure`
     : "Procedure";
-
   const datePart = schedule.appointmentDate
     ? `on ${formatDisplayDate(schedule.appointmentDate)}`
     : "on a date to be set";
-
   const timePart = schedule.appointmentTime
     ? `at ${formatDisplayTime(schedule.appointmentTime)}`
     : "at a time to be set";
-
   const roomPart = schedule.room ? `in ${formatRoomLabel(schedule.room)}` : "";
-
   return [procedurePart, datePart, timePart, roomPart].filter(Boolean).join(" ");
 }
 
@@ -283,22 +259,17 @@ function upsertLine(
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line) => line.length > 0);
-
   let replaced = false;
-
   const updated = lines.map((line) => {
     if (matcher(line)) {
       replaced = true;
       return nextLine;
     }
-
     return line;
   });
-
   if (!replaced) {
     updated.push(nextLine);
   }
-
   return updated.join("\n");
 }
 
@@ -334,7 +305,6 @@ function getPrescriptionMeta(rx: Prescription) {
 
 function normalizeStringArray(value: unknown) {
   if (!Array.isArray(value)) return [] as string[];
-
   return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter((item) => item.length > 0);
@@ -391,7 +361,6 @@ const SoapNoteModal = ({
   const [showPreview, setShowPreview] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // SOAP Note History States
   const [soapNoteHistory, setSoapNoteHistory] = useState<any[]>([]);
   const [selectedSoapNoteIndex, setSelectedSoapNoteIndex] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -437,7 +406,7 @@ const SoapNoteModal = ({
         instructions:
           typeof rx?.instructions === "string" ? rx.instructions : "",
       }))
-      .filter((rx) => rx.generic.trim().length > 0);
+      .filter((rx: Prescription) => rx.generic.trim().length > 0); // ✅ FIXED: added type annotation
 
     const savedDiagnosticImages = normalizeStringArray(note?.diagnosticImages);
     const fallbackImage =
@@ -472,27 +441,21 @@ const SoapNoteModal = ({
     setPlan((prev: string) => removeMatchingLines(prev, isPlanScheduleLine));
   };
 
-  // Load SOAP Note History
   const loadSoapNoteHistory = async () => {
     if (!patient?.id) return;
-
     try {
       const userRole = String(session?.user?.role || "").toUpperCase();
       const apiPath =
         userRole === "DOCTOR"
           ? `/api/doctor/soap-notes?patientId=${patient.id}`
           : `/api/admin/soap-notes?patientId=${patient.id}`;
-
       const response = await fetch(apiPath, {
         method: "GET",
         cache: "no-store",
       });
-
       const data = await safeJson(response);
-
       if (response.ok && data.soapNotes && data.soapNotes.length > 0) {
         setSoapNoteHistory(data.soapNotes);
-        // Load the latest one
         hydrateFromSoapNote(data.soapNotes[0]);
         setSelectedSoapNoteIndex(0);
         setShowHistory(true);
@@ -508,7 +471,6 @@ const SoapNoteModal = ({
     }
   };
 
-  // Load history when modal opens
   useEffect(() => {
     if (open && patient?.id && status !== "loading") {
       const userRole = String(session?.user?.role || "").toUpperCase();
@@ -520,19 +482,14 @@ const SoapNoteModal = ({
 
   useEffect(() => {
     if (!open || !patient?.id || status === "loading") return;
-
     let cancelled = false;
-
     const loadSoapNote = async () => {
       const raw =
         typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
-
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-
           if (cancelled) return;
-
           setDiagnosis(parsed.diagnosis ?? "");
           setChiefComplaint(parsed.chiefComplaint ?? "");
           setHistoryOfPresentIllness(parsed.historyOfPresentIllness ?? "");
@@ -560,39 +517,29 @@ const SoapNoteModal = ({
           }
         }
       }
-
       const userRole = String(session?.user?.role || "").toUpperCase();
-
       if (userRole !== "ADMIN" && userRole !== "DOCTOR") {
         if (!cancelled) resetDraftFields();
         return;
       }
-
       try {
         if (!cancelled) setLoadingExistingNote(true);
-
         const apiPath =
           userRole === "DOCTOR"
             ? `/api/doctor/soap-notes?patientId=${patient.id}`
             : `/api/admin/soap-notes?patientId=${patient.id}`;
-
         const response = await fetch(apiPath, {
           method: "GET",
           cache: "no-store",
         });
-
         const data = await safeJson(response);
-
         if (!response.ok) {
           throw new Error(data?.error || "Failed to load saved SOAP note");
         }
-
         const latestSoapNote = Array.isArray(data?.soapNotes)
           ? data.soapNotes[0]
           : null;
-
         if (cancelled) return;
-
         if (latestSoapNote) {
           hydrateFromSoapNote(latestSoapNote);
         } else {
@@ -609,9 +556,7 @@ const SoapNoteModal = ({
         }
       }
     };
-
     void loadSoapNote();
-
     return () => {
       cancelled = true;
     };
@@ -619,7 +564,6 @@ const SoapNoteModal = ({
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
-
     localStorage.setItem(
       storageKey,
       JSON.stringify({
@@ -661,14 +605,12 @@ const SoapNoteModal = ({
   }) => {
     console.log("🔵 handleSaveFinding called with:", data);
     console.log("🔵 patient.id:", patient.id);
-
     try {
       if (!patient.id || patient.id === "temp") {
         console.warn("❌ Clinical finding not saved - missing patient ID", data);
         alert("Cannot save clinical finding: Patient ID is missing. Please ensure the patient has a valid ID.");
         return;
       }
-
       const payload = {
         patientId: patient.id,
         anatomy: data.anatomy,
@@ -676,26 +618,21 @@ const SoapNoteModal = ({
         impression: data.notes,
       };
       console.log("📤 Sending payload to API:", payload);
-
       const res = await fetch("/api/clinical-findings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       console.log("📥 API Response status:", res.status);
-
       if (!res.ok) {
         const err = await safeJson(res);
         console.error("❌ Failed to save clinical finding:", err?.error || res.statusText);
         alert(`Failed to save clinical finding: ${err?.error || "Unknown error"}`);
         return;
       }
-
       const result = await res.json();
       console.log("✅ Clinical finding saved successfully:", result);
       alert("✅ Clinical finding saved successfully!");
-
       const newEntry = `${data.diagnosis} (${data.anatomy}) – ${data.notes}`;
       setDiagnosis((prev) => (prev ? `${prev}; ${newEntry}` : newEntry));
     } catch (error) {
@@ -737,19 +674,13 @@ const SoapNoteModal = ({
     }
   };
 
-  /* ============================================================
-     MODIFIED: handleSaveNote with compression
-     ============================================================ */
   const handleSaveNote = async () => {
     setError(null);
-
     try {
-      // Compress all diagnostic images before saving
       const compressedDiagnosticImages = await Promise.all(
         diagnostics.map(async (item) => {
           if (typeof item?.imageData === "string" && item.imageData.trim()) {
             try {
-              // Compress to 500x400 at 50% quality
               const compressed = await compressImage(item.imageData, 500, 400, 0.5);
               return compressed;
             } catch (err) {
@@ -760,9 +691,7 @@ const SoapNoteModal = ({
           return "";
         })
       );
-
       const diagnosticImages = compressedDiagnosticImages.filter((item) => item.length > 0);
-
       const payload = {
         patientId: patient.id,
         chiefComplaint,
@@ -775,21 +704,17 @@ const SoapNoteModal = ({
         diagnosticImages,
         prescriptions,
       };
-
       const userRole = String(session?.user?.role || "").toUpperCase();
-
       if (userRole !== "ADMIN" && userRole !== "DOCTOR") {
         const roleError = "Unauthorized role for SOAP note saving";
         setError(roleError);
         alert(roleError);
         return;
       }
-
       const apiPath =
         userRole === "DOCTOR"
           ? "/api/doctor/soap-notes"
           : "/api/admin/soap-notes";
-
       const response = await fetch(apiPath, {
         method: "POST",
         headers: {
@@ -797,7 +722,6 @@ const SoapNoteModal = ({
         },
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
         const data = await safeJson(response);
         const errorMessage = data?.error || `HTTP ${response.status}: ${response.statusText}`;
@@ -805,9 +729,7 @@ const SoapNoteModal = ({
         alert(`Failed to save SOAP Note: ${errorMessage}`);
         return;
       }
-
       alert("SOAP Note saved successfully!");
-
       if (typeof window !== "undefined") {
         localStorage.removeItem(storageKey);
         window.dispatchEvent(
@@ -816,10 +738,7 @@ const SoapNoteModal = ({
           })
         );
       }
-
-      // Refresh history after saving
       await loadSoapNoteHistory();
-
       onSaved?.();
       onClose();
     } catch (error: any) {
@@ -829,32 +748,23 @@ const SoapNoteModal = ({
     }
   };
 
-  /* ============================================================
-     MODIFIED: handleSaveDiagnostic with compression
-     ============================================================ */
   const handleSaveDiagnostic = async (diagnostic: Diagnostic) => {
     try {
-      // Compress the image before storing in state
       const compressedData = await compressImage(diagnostic.imageData, 500, 400, 0.5);
-
       const compressedDiagnostic = {
         ...diagnostic,
         imageData: compressedData,
       };
-
       setDiagnostics((prev: Diagnostic[]) => [...prev, compressedDiagnostic]);
-
       if (!diagnosis.trim()) {
         setDiagnosis("Diagnostic findings");
       }
-
       console.log(
         `✅ Diagnostic image saved. Original size: ${Math.round(diagnostic.imageData.length / 1024)}KB, ` +
         `Compressed: ${Math.round(compressedData.length / 1024)}KB`
       );
     } catch (error) {
       console.error("Failed to compress diagnostic image:", error);
-      // Fallback - save original if compression fails
       setDiagnostics((prev: Diagnostic[]) => [...prev, diagnostic]);
     }
   };
@@ -870,21 +780,17 @@ const SoapNoteModal = ({
   const handleExportPDF = async () => {
     const modalEl = document.getElementById("soap-modal-content");
     if (!modalEl) return;
-
     const canvas = await html2canvas(modalEl, { scale: 2 });
     const imgData = canvas.toDataURL("image/png");
-
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = 210;
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
     pdf.save(`SOAP_Report_${patient.name}.pdf`);
   };
 
   const handleRoomSelect = (room: RoomType) => {
     setSelectedRoom(room);
-
     if (scheduledProcedure) {
       setScheduledProcedure((prev) =>
         prev
@@ -895,7 +801,6 @@ const SoapNoteModal = ({
           : prev
       );
     }
-
     setOpenRoomModal(false);
   };
 
@@ -908,20 +813,15 @@ const SoapNoteModal = ({
       notes: data.notes || "",
       doctor: patient.name || "Doctor",
     };
-
     const normalizedRoom =
       normalized.room && isRoomType(normalized.room as any)
         ? (normalized.room as RoomType)
         : null;
-
     if (normalizedRoom) setSelectedRoom(normalizedRoom);
-
     setScheduledProcedure(normalized);
-
     const summary = buildScheduleSummary(normalized);
     const nextFollowUpLine = `${FOLLOW_UP_MARKER} ${summary}`;
     const nextPlanLine = `• ${FOLLOW_UP_MARKER} ${summary}`;
-
     setFollowUp((prev: string) =>
       upsertLine(prev, nextFollowUpLine, isFollowUpScheduleLine)
     );
@@ -950,7 +850,6 @@ const SoapNoteModal = ({
         </div>
       );
     }
-
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -962,7 +861,6 @@ const SoapNoteModal = ({
               {buildScheduleSummary(scheduledProcedure)}
             </p>
           </div>
-
           <button
             type="button"
             onClick={clearScheduledProcedure}
@@ -971,7 +869,6 @@ const SoapNoteModal = ({
             Clear
           </button>
         </div>
-
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl bg-white px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -981,7 +878,6 @@ const SoapNoteModal = ({
               {formatProcedureLabel(scheduledProcedure.procedureType)}
             </p>
           </div>
-
           <div className="rounded-2xl bg-white px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Date
@@ -990,7 +886,6 @@ const SoapNoteModal = ({
               {formatDisplayDate(scheduledProcedure.appointmentDate)}
             </p>
           </div>
-
           <div className="rounded-2xl bg-white px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Time
@@ -999,7 +894,6 @@ const SoapNoteModal = ({
               {formatDisplayTime(scheduledProcedure.appointmentTime)}
             </p>
           </div>
-
           <div className="rounded-2xl bg-white px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Room
@@ -1013,10 +907,8 @@ const SoapNoteModal = ({
     );
   };
 
-  // Render SOAP Note History
   const renderSoapNoteHistory = () => {
     if (!showHistory || soapNoteHistory.length === 0) return null;
-
     return (
       <div className="mb-4">
         <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2">
@@ -1070,7 +962,6 @@ const SoapNoteModal = ({
           </span>
         </div>
       </div>
-
       <div className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-violet-500">
@@ -1089,7 +980,6 @@ const SoapNoteModal = ({
             />
           </div>
         </div>
-
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-emerald-500">
             Objective
@@ -1100,7 +990,6 @@ const SoapNoteModal = ({
             empty="No remarks recorded"
           />
         </div>
-
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-amber-500">
             Assessment
@@ -1110,7 +999,6 @@ const SoapNoteModal = ({
             value={diagnosis}
             empty="No diagnosis recorded"
           />
-
           {diagnostics.length > 0 && (
             <div className="mt-4 space-y-4">
               {diagnostics.map((d, i) => (
@@ -1133,7 +1021,6 @@ const SoapNoteModal = ({
             </div>
           )}
         </div>
-
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-cyan-500">
             Plan
@@ -1144,13 +1031,12 @@ const SoapNoteModal = ({
               value={plan}
               empty="No plan recorded"
             />
-
             {prescriptions.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                   Prescriptions
                 </p>
-                {prescriptions.map((rx, idx) => (
+                {prescriptions.map((rx: Prescription, idx: number) => (
                   <div
                     key={idx}
                     className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
@@ -1172,14 +1058,12 @@ const SoapNoteModal = ({
                 ))}
               </div>
             )}
-
             <div className="space-y-3 border-t border-slate-100 pt-4">
               <PreviewBlock
                 title="Follow-up"
                 value={followUp}
                 empty="No follow-up scheduled"
               />
-
               {scheduledProcedure && (
                 <div className="grid gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:grid-cols-2">
                   <div>
@@ -1190,7 +1074,6 @@ const SoapNoteModal = ({
                       {formatProcedureLabel(scheduledProcedure.procedureType)}
                     </p>
                   </div>
-
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
                       Date
@@ -1199,7 +1082,6 @@ const SoapNoteModal = ({
                       {formatDisplayDate(scheduledProcedure.appointmentDate)}
                     </p>
                   </div>
-
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
                       Time
@@ -1208,7 +1090,6 @@ const SoapNoteModal = ({
                       {formatDisplayTime(scheduledProcedure.appointmentTime)}
                     </p>
                   </div>
-
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
                       Room
@@ -1246,7 +1127,6 @@ const SoapNoteModal = ({
                   </p>
                 )}
               </div>
-
               <button
                 onClick={onClose}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
@@ -1256,7 +1136,6 @@ const SoapNoteModal = ({
               </button>
             </div>
           </div>
-
           <div
             id="soap-modal-content"
             className="flex-1 overflow-y-auto bg-[linear-gradient(to_bottom,_#f8fbff,_#ffffff)]"
@@ -1264,9 +1143,7 @@ const SoapNoteModal = ({
             <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="overflow-y-auto p-4 sm:p-6">
                 <div className="space-y-6">
-                  {/* SOAP Note History Section */}
                   {renderSoapNoteHistory()}
-
                   <SectionCard
                     title="Subjective"
                     accent="bg-violet-500"
@@ -1280,7 +1157,6 @@ const SoapNoteModal = ({
                         value={chiefComplaint}
                         onChange={setChiefComplaint}
                       />
-
                       <TextAreaField
                         id="historyOfPresentIllness"
                         label="History of Present Illness"
@@ -1291,7 +1167,6 @@ const SoapNoteModal = ({
                       />
                     </div>
                   </SectionCard>
-
                   <SectionCard
                     title="Objective"
                     accent="bg-emerald-500"
@@ -1306,7 +1181,6 @@ const SoapNoteModal = ({
                       rows={5}
                     />
                   </SectionCard>
-
                   <SectionCard
                     title="Assessment"
                     accent="bg-amber-500"
@@ -1321,12 +1195,10 @@ const SoapNoteModal = ({
                         onChange={setDiagnosis}
                         rows={4}
                       />
-
                       <ActionChips
                         options={["Add Diagnosis"]}
                         onSelect={() => setOpen3DModal(true)}
                       />
-
                       {diagnostics.length > 0 && (
                         <div className="grid gap-3 sm:grid-cols-2">
                           {diagnostics.map((d, i) => (
@@ -1350,7 +1222,6 @@ const SoapNoteModal = ({
                       )}
                     </div>
                   </SectionCard>
-
                   <SectionCard
                     title="Plan"
                     accent="bg-cyan-500"
@@ -1365,7 +1236,6 @@ const SoapNoteModal = ({
                         onChange={setPlan}
                         rows={4}
                       />
-
                       <ActionChips
                         options={["Add Prescription"]}
                         onSelect={(option) => {
@@ -1374,10 +1244,9 @@ const SoapNoteModal = ({
                           }
                         }}
                       />
-
                       {prescriptions.length > 0 && (
                         <div className="space-y-3">
-                          {prescriptions.map((rx, idx) => (
+                          {prescriptions.map((rx: Prescription, idx: number) => (
                             <div
                               key={idx}
                               className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -1397,7 +1266,6 @@ const SoapNoteModal = ({
                                   </p>
                                 )}
                               </div>
-
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleEdit(idx)}
@@ -1418,7 +1286,6 @@ const SoapNoteModal = ({
                           ))}
                         </div>
                       )}
-
                       {selectedMaterials.length > 0 && (
                         <div className="space-y-3">
                           {selectedMaterials.map((material, idx) => (
@@ -1443,7 +1310,6 @@ const SoapNoteModal = ({
                                   </p>
                                 </div>
                               </div>
-
                               <button
                                 onClick={() => handleRemoveMaterial(idx)}
                                 className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
@@ -1455,7 +1321,6 @@ const SoapNoteModal = ({
                           ))}
                         </div>
                       )}
-
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <TextAreaField
                           id="followUp"
@@ -1465,7 +1330,6 @@ const SoapNoteModal = ({
                           onChange={setFollowUp}
                           rows={3}
                         />
-
                         <div className="mt-4 rounded-2xl border border-dashed border-cyan-200 bg-cyan-50/50 p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
@@ -1479,7 +1343,6 @@ const SoapNoteModal = ({
                                 Room should be last, or auto-assigned if only one room fits.
                               </p>
                             </div>
-
                             <div className="shrink-0">
                               <ActionChips
                                 options={[
@@ -1491,7 +1354,6 @@ const SoapNoteModal = ({
                               />
                             </div>
                           </div>
-
                           <div className="mt-4">{renderScheduleSummaryCard()}</div>
                         </div>
                       </div>
@@ -1499,7 +1361,6 @@ const SoapNoteModal = ({
                   </SectionCard>
                 </div>
               </div>
-
               <div className="hidden overflow-y-auto border-l border-slate-200 bg-[linear-gradient(to_bottom,_#f8fafc,_#eef6ff)] p-6 lg:block">
                 <div className="sticky top-0">
                   {showPreview ? (
@@ -1519,7 +1380,6 @@ const SoapNoteModal = ({
                   )}
                 </div>
               </div>
-
               <div className="border-t border-slate-200 bg-slate-50 p-4 lg:hidden">
                 <details className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
@@ -1530,7 +1390,6 @@ const SoapNoteModal = ({
               </div>
             </div>
           </div>
-
           {error && (
             <div className="border-t border-red-200 bg-red-50/80 p-4">
               <div className="flex items-start gap-2 text-sm text-red-800">
@@ -1539,7 +1398,6 @@ const SoapNoteModal = ({
               </div>
             </div>
           )}
-
           <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/90 px-5 py-4 backdrop-blur sm:px-6">
             <button
               onClick={onClose}
@@ -1573,7 +1431,6 @@ const SoapNoteModal = ({
           </div>
         </div>
       </div>
-
       {previewImage && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
@@ -1590,7 +1447,6 @@ const SoapNoteModal = ({
             >
               Close
             </button>
-
             <div className="overflow-hidden rounded-3xl bg-white p-3 shadow-2xl">
               <img
                 src={previewImage}
@@ -1601,7 +1457,6 @@ const SoapNoteModal = ({
           </div>
         </div>
       )}
-
       <PrescriptionModal
         open={openPrescription}
         onClose={() => {
@@ -1611,7 +1466,6 @@ const SoapNoteModal = ({
         onSave={handleAddOrUpdatePrescription}
         defaultValues={editingIndex !== null ? prescriptions[editingIndex] : undefined}
       />
-
       {open3DModal && patient && (
         <HeadTemplateModal
           open={open3DModal}
@@ -1626,7 +1480,6 @@ const SoapNoteModal = ({
           onSaveDiagnostic={handleSaveDiagnostic}
         />
       )}
-
       <EducationalMaterialModal
         open={openEducationalMaterial}
         onClose={() => setOpenEducationalMaterial(false)}
@@ -1636,7 +1489,6 @@ const SoapNoteModal = ({
         }}
         selected={selectedMaterials}
       />
-
       <ClinicalRoom
         open={openRoomModal}
         onClose={() => setOpenRoomModal(false)}

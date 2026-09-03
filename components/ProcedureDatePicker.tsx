@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getMonthGrid, isSunday, getBlockedInfo } from '../utils/useAvailability';
+import { getMonthGrid, isSunday, getBlockedInfo, BlockedDate } from '../utils/useAvailability';
 
 interface ProcedureDatePickerProps {
   value: string;
@@ -20,20 +20,15 @@ const monthNames = [
 export default function ProcedureDatePicker({ value, onSelect, month: propMonth, blockedDates }: ProcedureDatePickerProps) {
   const [currentMonth, setCurrentMonth] = useState<Date>(propMonth || new Date());
   const isDateAvailable = (day: Date) => {
-    const blockedInfo = getBlockedInfo(day, blockedDates as any);
+    const blockedInfo = getBlockedInfo(day, blockedDates);
     return !isSunday(day) && !blockedInfo;
   };
 
   const monthGrid = getMonthGrid(currentMonth.getFullYear(), currentMonth.getMonth());
   const selectedDate = value ? new Date(value) : null;
 
-  const prevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
 
   const handleDayClick = (day: Date) => {
     if (isDateAvailable(day)) {
@@ -44,41 +39,28 @@ export default function ProcedureDatePicker({ value, onSelect, month: propMonth,
 
   const today = new Date();
   today.setHours(0,0,0,0);
-
   const isSameMonth = (day: Date) => day.getMonth() === currentMonth.getMonth();
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="Previous month">
           <ChevronLeft size={20} />
         </button>
-        <div className="text-lg font-bold">
-          {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-        </div>
+        <div className="text-lg font-bold">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</div>
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="Next month">
           <ChevronRight size={20} />
         </button>
       </div>
-
-      {/* Days header */}
       <div className="grid grid-cols-7 gap-1">
-        {days.map(day => (
-          <div key={day} className="text-xs font-bold text-gray-600 uppercase text-center py-2">
-            {day}
-          </div>
-        ))}
+        {days.map(day => <div key={day} className="text-xs font-bold text-gray-600 uppercase text-center py-2">{day}</div>)}
       </div>
-
-      {/* Month grid */}
       <div className="grid grid-cols-7 gap-1 max-h-80 overflow-y-auto">
         {monthGrid.map((day) => {
           const available = isDateAvailable(day);
           const isSelected = selectedDate && day.toDateString() === selectedDate.toDateString();
           const isToday = day.toDateString() === today.toDateString();
           const sameMonth = isSameMonth(day);
-
           let bgClass = '';
           let textClass = 'text-gray-900';
           if (!sameMonth) {
@@ -95,10 +77,8 @@ export default function ProcedureDatePicker({ value, onSelect, month: propMonth,
           } else {
             bgClass = 'hover:bg-indigo-50 border-gray-200';
           }
-
           const blockedInfo = getBlockedInfo(day, blockedDates);
           const statusLabel = !available && sameMonth && blockedInfo?.reason ? blockedInfo.reason : null;
-
           return (
             <button
               key={day.toISOString()}

@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       ? Math.min(Math.max(limitParam, 1), 100)
       : 100;
 
-    const medications = await prisma.medication.findMany({
+    const medications = await prisma.medicine.findMany({
       where: q
         ? {
             OR: [
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingMedication = await prisma.medication.findFirst({
+    const existingMedication = await prisma.medicine.findFirst({
       where: {
         generic: { equals: generic, mode: "insensitive" },
         brandName: brandName
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const medication = await prisma.medication.create({
+    const medication = await prisma.medicine.create({
       data: {
         generic,
         brandName,

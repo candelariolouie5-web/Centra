@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,8 +13,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     const template = await prisma.clinicalTemplate.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!template) {
@@ -32,7 +34,7 @@ export async function DELETE(
     }
 
     await prisma.clinicalTemplate.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ success: true });

@@ -2,6 +2,7 @@
 
 "use client";
 
+import React from 'react';
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import PatientNotes from "./PatientNotes";
@@ -9,7 +10,7 @@ import PatientNotes from "./PatientNotes";
 /* ---------------- ICON ---------------- */
 
 const Icon = ({ name, className }: { name: string; className?: string }) => {
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.ReactElement> = {
     close: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

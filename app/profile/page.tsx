@@ -10,7 +10,8 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  if (session.user.role === "doctor") {
+  // ✅ Fixed: "DOCTOR" instead of "doctor"
+  if (session.user.role === "DOCTOR") {
     redirect("/doctor/dashboard");
   }
   if (session.user.role === "ADMIN") {
