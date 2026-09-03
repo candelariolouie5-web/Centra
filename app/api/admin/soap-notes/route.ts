@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 
@@ -6,7 +5,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 type PrescriptionInput = {
-  medicationId?: string | null;
   generic?: string | null;
   brandName?: string | null;
   quantity?: string | null;
@@ -47,10 +45,6 @@ function normalizeStringArray(value: unknown) {
 
 function normalizePrescription(rx: PrescriptionInput) {
   return {
-    medicationId:
-      typeof rx?.medicationId === "string" && rx.medicationId.trim()
-        ? rx.medicationId.trim()
-        : null,
     generic: normalizeText(rx?.generic),
     brandName: normalizeText(rx?.brandName),
     quantity: normalizeText(rx?.quantity),
@@ -85,20 +79,7 @@ export async function POST(request: NextRequest) {
   let requestBody: SoapNoteRequestBody | null = null;
 
   try {
-    console.log("[SOAP-REQUEST]", { url: request.url, method: request.method });
-
     requestBody = (await request.json()) as SoapNoteRequestBody;
-
-    console.log("[SOAP-BODY]", {
-      patientId: requestBody?.patientId,
-      hasPrescriptions: !!requestBody?.prescriptions?.length,
-      diagnosticImagesCount: Array.isArray(requestBody?.diagnosticImages)
-        ? requestBody!.diagnosticImages!.length
-        : 0,
-      fields: Object.keys(requestBody || {}).filter(
-        (key) => key !== "prescriptions"
-      ),
-    });
 
     const patientId = normalizeText(requestBody?.patientId);
 
@@ -109,27 +90,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const patientWithScope = await prisma.patient.findFirst({
-      where: {
-        id: patientId,
-        appointments: {
-          some: {
-            assignedToRole: "ADMIN",
-            status: {
-              in: ["PENDING", "CONFIRMED", "ACCEPTED"],
-            },
-          },
-        },
-      },
+    // Check if patient exists
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
       select: { id: true },
     });
 
-    if (!patientWithScope) {
+    if (!patient) {
       return NextResponse.json(
-        {
-          error: `Patient not found or not in admin scope: ${patientId}`,
-        },
-        { status: 403 }
+        { error: `Patient not found: ${patientId}` },
+        { status: 404 }
       );
     }
 
@@ -140,25 +110,6 @@ export async function POST(request: NextRequest) {
     const normalizedPrescriptions = rawPrescriptions
       .map(normalizePrescription)
       .filter((rx) => rx.generic.length > 0);
-
-    const requestedMedicationIds = normalizedPrescriptions
-      .map((rx) => rx.medicationId)
-      .filter((id): id is string => typeof id === "string" && id.length > 0);
-
-    let validMedicationIds = new Set<string>();
-
-    if (requestedMedicationIds.length > 0) {
-      const medications = await prisma.medication.findMany({
-        where: {
-          id: {
-            in: requestedMedicationIds,
-          },
-        },
-        select: { id: true },
-      });
-
-      validMedicationIds = new Set(medications.map((med) => med.id));
-    }
 
     const normalizedDiagnosticImages = normalizeStringArray(
       requestBody?.diagnosticImages
@@ -172,59 +123,28 @@ export async function POST(request: NextRequest) {
           ? [fallbackSingleImage]
           : [];
 
-    const soapNotePayload = {
-      chiefComplaint: normalizeNullableText(requestBody?.chiefComplaint),
-      historyOfIllness: normalizeNullableText(requestBody?.historyOfIllness),
-      remarks: normalizeNullableText(requestBody?.remarks),
-      diagnosis: normalizeNullableText(requestBody?.diagnosis),
-      plan: normalizeNullableText(requestBody?.plan),
-      followUp: normalizeNullableText(requestBody?.followUp),
-      imageData: finalDiagnosticImages[0] ?? null,
-      diagnosticImages: finalDiagnosticImages,
-      prescriptions: normalizedPrescriptions,
-    };
-
-    const existingSoapNote = await prisma.soapNote.findFirst({
-      where: { patientId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-
+    // ✅ ALWAYS CREATE NEW SOAP NOTE (NO UPDATE)
     const soapNote = await prisma.$transaction(async (tx) => {
-      let savedSoapNote:
-        | {
-            id: string;
-          }
-        | undefined;
-
-      if (existingSoapNote) {
-        savedSoapNote = await tx.soapNote.update({
-          where: { id: existingSoapNote.id },
-          data: soapNotePayload,
-          select: { id: true },
-        });
-
-        await tx.prescription.deleteMany({
-          where: { soapNoteId: existingSoapNote.id },
-        });
-      } else {
-        savedSoapNote = await tx.soapNote.create({
-          data: {
-            patientId,
-            ...soapNotePayload,
-          },
-          select: { id: true },
-        });
-      }
+      // Create new SOAP note
+      const newSoapNote = await tx.soapNote.create({
+        data: {
+          patientId,
+          chiefComplaint: normalizeNullableText(requestBody?.chiefComplaint),
+          historyOfIllness: normalizeNullableText(requestBody?.historyOfIllness),
+          remarks: normalizeNullableText(requestBody?.remarks),
+          diagnosis: normalizeNullableText(requestBody?.diagnosis),
+          plan: normalizeNullableText(requestBody?.plan),
+          followUp: normalizeNullableText(requestBody?.followUp),
+          imageData: finalDiagnosticImages[0] ?? null,
+          diagnosticImages: finalDiagnosticImages,
+        },
+        select: { id: true },
+      });
 
       if (normalizedPrescriptions.length > 0) {
         await tx.prescription.createMany({
           data: normalizedPrescriptions.map((rx) => ({
-            soapNoteId: savedSoapNote.id,
-            medicationId:
-              rx.medicationId && validMedicationIds.has(rx.medicationId)
-                ? rx.medicationId
-                : null,
+            soapNoteId: newSoapNote.id,
             generic: rx.generic,
             brandName: rx.brandName,
             quantity: rx.quantity,
@@ -234,7 +154,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return savedSoapNote;
+      return newSoapNote;
     });
 
     return NextResponse.json({
@@ -254,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     if (error?.code === "P2002") {
       errorMessage =
-        "Database constraint violation - data already exists or is invalid";
+        "Database constraint violation - data already exists or invalid";
     } else if (typeof error?.code === "string" && error.code.startsWith("P20")) {
       errorMessage = `Database error: ${error.message}`;
     } else if (
@@ -301,12 +221,7 @@ export async function GET(request: NextRequest) {
     const soapNotes = await prisma.soapNote.findMany({
       where: { patientId },
       include: {
-        prescriptionsList: {
-          include: {
-            medication: true,
-          },
-          orderBy: { createdAt: "asc" },
-        },
+        prescriptionsList: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -321,7 +236,6 @@ export async function GET(request: NextRequest) {
             : [],
       prescriptions: note.prescriptionsList.map((rx) => ({
         id: rx.id,
-        medicationId: rx.medicationId,
         generic: rx.generic,
         brandName: rx.brandName,
         quantity: rx.quantity,

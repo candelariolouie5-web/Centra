@@ -10,6 +10,11 @@ import {
   User2,
   Stethoscope,
   Check,
+  Users,
+  UserPlus,
+  Shield,
+  Calendar,
+  Loader2,
 } from "lucide-react";
 
 type ServiceType = "ear" | "nose" | "throat" | "aesthetics";
@@ -20,6 +25,17 @@ type SlotInfo = {
   remaining: number;
   isFull: boolean;
   reason?: string;
+};
+
+type Patient = {
+  id: string;
+  name: string;
+  age: number | null;
+  gender: string | null;
+  phone: string | null;
+  email: string | null;
+  birthdate: string | null;
+  address: string | null;
 };
 
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -88,17 +104,30 @@ function isValidPHMobile(value: string) {
 export default function UserAppointmentCalendar() {
   const { data: session } = useSession();
 
+  // ===== PATIENT TYPE STATE =====
+  const [patientType, setPatientType] = useState<"new" | "existing">("new");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+
+  // ===== FORM STATE (LAHAT NG FIELDS) =====
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState(""); // ✅ NEW
+  const [gender, setGender] = useState("");
   const [contactNumber, setContactNumber] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("ear");
+
+  // ===== AUTO-SEARCH STATE =====
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [formErrors, setFormErrors] = useState<{
     fullName?: string;
     age?: string;
-    gender?: string; // ✅ NEW
+    gender?: string;
     contactNumber?: string;
+    birthdate?: string;
   }>({});
 
   const [showCalendarModal, setShowCalendarModal] = useState(false);
@@ -128,46 +157,126 @@ export default function UserAppointmentCalendar() {
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const weekKey = useMemo(() => weekDays.map((d) => formatDate(d)).join(","), [weekDays]);
 
-  const isFormComplete =
-    fullName.trim() !== "" &&
-    age.trim() !== "" &&
-    Number(age) > 0 &&
-    Number(age) <= 999 && // ✅ max 3 digits
-    gender.trim() !== "" && // ✅ gender required
-    contactNumber.length === 11 &&
-    isValidPHMobile(contactNumber);
+  // ===== AUTO-SEARCH FOR RETURNING PATIENT (NAME + BIRTHDATE LANG) =====
+  useEffect(() => {
+    // Only run when patientType is "existing"
+    if (patientType !== "existing") {
+      setSelectedPatient(null);
+      setIsVerified(false);
+      setSearchError(null);
+      return;
+    }
+
+    // Need at least name (2 chars) and birthdate
+    if (!fullName.trim() || fullName.trim().length < 2 || !birthdate.trim()) {
+      setSearchError(null);
+      setSelectedPatient(null);
+      setIsVerified(false);
+      return;
+    }
+
+    // Validate birthdate
+    const dateObj = new Date(birthdate);
+    if (isNaN(dateObj.getTime())) {
+      setSearchError("Invalid birthdate format");
+      setSelectedPatient(null);
+      setIsVerified(false);
+      return;
+    }
+
+    // Debounce search
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        // ✅ TINANGGAL ANG EMAIL SA API CALL — NAME + BIRTHDATE LANG
+        const res = await fetch(
+          `/api/patients/find-by-email-name-birthdate?name=${encodeURIComponent(
+            fullName.trim()
+          )}&birthdate=${birthdate}`
+        );
+        const data = await res.json();
+
+        if (data.found && data.patient) {
+          // ✅ Found existing patient
+          setSelectedPatient(data.patient);
+          setIsVerified(true);
+          setAge(data.patient.age?.toString() || "");
+          setGender(data.patient.gender || "");
+          setContactNumber(data.patient.phone || "");
+          setSearchError(null);
+        } else {
+          // ❌ No match — this will be treated as new patient
+          setSelectedPatient(null);
+          setIsVerified(false);
+          setSearchError(data.error || null);
+        }
+      } catch (error) {
+        console.error("Auto-search error:", error);
+        setSearchError("An error occurred. Please try again.");
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [fullName, birthdate, patientType]);
+
+  // ===== CHECK IF FORM IS COMPLETE =====
+  const isFormComplete = useMemo(() => {
+    // For returning patient: dapat may selectedPatient at verified
+    if (patientType === "existing" && selectedPatient) {
+      return true;
+    }
+    // For new patient: validate all fields including birthdate
+    return (
+      fullName.trim() !== "" &&
+      age.trim() !== "" &&
+      Number(age) > 0 &&
+      Number(age) <= 999 &&
+      gender.trim() !== "" &&
+      contactNumber.length === 11 &&
+      isValidPHMobile(contactNumber) &&
+      birthdate.trim() !== ""
+    );
+  }, [patientType, selectedPatient, fullName, age, gender, contactNumber, birthdate]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
 
+  // ===== VALIDATE FORM =====
   const validateForm = () => {
     const errors: {
       fullName?: string;
       age?: string;
       gender?: string;
       contactNumber?: string;
+      birthdate?: string;
     } = {};
 
-    if (!fullName.trim()) {
-      errors.fullName = "Full Name is required";
+    if (patientType === "existing" && selectedPatient) {
+      return true;
     }
 
+    if (!fullName.trim()) errors.fullName = "Full Name is required";
     if (!age.trim()) {
       errors.age = "Age is required";
     } else if (isNaN(Number(age)) || Number(age) <= 0) {
       errors.age = "Age must be a positive number";
     } else if (Number(age) > 999) {
-      errors.age = "Age cannot exceed 999"; // ✅ 3-digit limit
+      errors.age = "Age must be 1 to 999 (max 3 digits)";
     }
-
-    if (!gender.trim()) {
-      errors.gender = "Gender is required"; // ✅ NEW
-    }
-
+    if (!gender.trim()) errors.gender = "Gender is required";
     if (!contactNumber.trim()) {
       errors.contactNumber = "Contact Number is required";
     } else if (contactNumber.length !== 11) {
@@ -175,11 +284,20 @@ export default function UserAppointmentCalendar() {
     } else if (!isValidPHMobile(contactNumber)) {
       errors.contactNumber = "Use a valid PH mobile number format (09XXXXXXXXX)";
     }
+    if (!birthdate.trim()) {
+      errors.birthdate = "Birthdate is required";
+    } else {
+      const dateObj = new Date(birthdate);
+      if (isNaN(dateObj.getTime())) {
+        errors.birthdate = "Invalid birthdate format";
+      }
+    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
+  // ===== FETCH AVAILABILITY =====
   const fetchWeekAvailability = useCallback(async () => {
     if (!showCalendarModal) return;
     if (!weekDays.length || !weekKey) return;
@@ -324,7 +442,6 @@ export default function UserAppointmentCalendar() {
 
   const isDayFullyBlocked = (date: Date) => {
     if (isSunday(date) || isPastDay(date) || isToday(date)) return false;
-
     return clinicHours.every((hour) => {
       const slot = getSlotInfo(date, hour);
       return slot.capacity <= 0;
@@ -334,7 +451,6 @@ export default function UserAppointmentCalendar() {
   const isDayFullyBooked = (date: Date) => {
     if (isSunday(date) || isPastDay(date) || isToday(date)) return false;
     if (isDayFullyBlocked(date)) return false;
-
     return clinicHours.every((hour) => {
       const slot = getSlotInfo(date, hour);
       return slot.capacity > 0 && slot.remaining <= 0;
@@ -353,7 +469,6 @@ export default function UserAppointmentCalendar() {
     if (slot.capacity <= 0) return slot.reason || "Blocked date";
     if (slot.reason) return slot.reason;
     if (slot.isFull || slot.remaining <= 0) return "Fully booked";
-
     return "Unavailable";
   };
 
@@ -362,13 +477,11 @@ export default function UserAppointmentCalendar() {
     const past = isPastDay(date);
     const today = isToday(date);
     const slot = getSlotInfo(date, hour);
-
     return !sunday && !past && !today && slot.capacity > 0 && slot.remaining > 0 && !slot.isFull;
   };
 
   const handleSelectSlot = (date: Date, hour: number) => {
     if (!isSlotAvailable(date, hour)) return;
-
     setSelectedDate(new Date(`${formatDate(date)}T00:00:00`));
     setSelectedTime(formatTime(hour));
     setShowCalendarModal(false);
@@ -376,42 +489,56 @@ export default function UserAppointmentCalendar() {
   };
 
   const handleBookAppointment = async () => {
-    if (!selectedDate || !selectedTime || !session?.user || !validateForm()) {
+    if (!selectedDate || !selectedTime || !session?.user) {
+      return;
+    }
+    if (!validateForm()) {
       return;
     }
 
     setIsBooking(true);
 
     try {
-      const bookingData = {
+      const payload: any = {
         date: formatDate(selectedDate),
         time: selectedTime,
-        name: fullName.trim(),
-        age,
-        gender, // ✅ NEW
-        contactNumber,
-        email: session.user.email || "",
         serviceType,
       };
 
-      console.log("📝 Booking data being sent:", bookingData);
+      // If we have a verified existing patient, use patientId
+      if (patientType === "existing" && selectedPatient && isVerified) {
+        payload.patientId = selectedPatient.id;
+        // Auto-sync updates (optional)
+        if (fullName.trim() !== selectedPatient.name) payload.name = fullName.trim();
+        if (age !== selectedPatient.age?.toString()) payload.age = parseInt(age) || undefined;
+        if (gender !== selectedPatient.gender) payload.gender = gender || undefined;
+        if (contactNumber !== selectedPatient.phone) payload.contactNumber = contactNumber;
+        if (birthdate !== selectedPatient.birthdate) payload.birthdate = birthdate;
+      } else {
+        // New patient: include birthdate
+        payload.name = fullName.trim();
+        payload.age = parseInt(age) || undefined;
+        payload.gender = gender || undefined;
+        payload.contactNumber = contactNumber;
+        payload.email = session.user.email || "";
+        payload.birthdate = birthdate;
+      }
+
+      console.log("📝 Booking payload:", payload);
 
       const res = await fetch("/api/appointment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bookingData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       const responseData = await res.json();
-      console.log("📨 Server response:", responseData);
 
       if (res.ok) {
         setSuccessData({
           date: selectedDate,
           time: selectedTime,
-          patient: fullName.trim(),
+          patient: fullName.trim() || selectedPatient?.name || "",
           contact: contactNumber,
           service: serviceType,
         });
@@ -424,38 +551,30 @@ export default function UserAppointmentCalendar() {
       }
     } catch (err) {
       console.error("❌ Booking error:", err);
-      alert(
-        "Error booking appointment: " +
-          (err instanceof Error ? err.message : "Unknown error")
-      );
+      alert("Error booking appointment: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setIsBooking(false);
     }
   };
 
-  const goToToday = () => {
-    setWeekStart(startOfWeek(new Date()));
-  };
-
-  const prevWeek = () => {
-    setWeekStart(
-      new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() - 7)
-    );
-  };
-
-  const nextWeek = () => {
-    setWeekStart(
-      new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7)
-    );
-  };
+  const goToToday = () => setWeekStart(startOfWeek(new Date()));
+  const prevWeek = () =>
+    setWeekStart(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() - 7));
+  const nextWeek = () =>
+    setWeekStart(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7));
 
   const handleBookAnother = () => {
     setShowSuccess(false);
     setSuccessData(null);
     setFullName("");
     setAge("");
-    setGender(""); // ✅ NEW
+    setGender("");
     setContactNumber("");
+    setBirthdate("");
+    setSelectedPatient(null);
+    setPatientType("new");
+    setIsVerified(false);
+    setSearchError(null);
   };
 
   return (
@@ -472,7 +591,9 @@ export default function UserAppointmentCalendar() {
                   Book your appointment
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Fill in your details first, then choose an available schedule.
+                  {patientType === "existing" && selectedPatient && isVerified
+                    ? "✅ You're verified as a returning patient. Your existing record will be used."
+                    : "Fill in your details first, then choose an available schedule."}
                 </p>
               </div>
 
@@ -497,6 +618,63 @@ export default function UserAppointmentCalendar() {
 
           {!showSuccess ? (
             <div className="space-y-8 p-6 md:p-8">
+              {/* ===== PATIENT TYPE TOGGLE ===== */}
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Are you a new or returning patient?
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      {patientType === "existing" && selectedPatient && isVerified
+                        ? "✅ You're verified as a returning patient. Your existing record will be used."
+                        : "Select your patient type to continue."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      setPatientType("new");
+                      setSelectedPatient(null);
+                      setIsVerified(false);
+                      setSearchError(null);
+                      setFullName("");
+                      setAge("");
+                      setGender("");
+                      setContactNumber("");
+                      setBirthdate("");
+                    }}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-medium transition-all ${
+                      patientType === "new"
+                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    ✨ New Patient
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPatientType("existing");
+                    }}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-medium transition-all ${
+                      patientType === "existing"
+                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Shield className="h-4 w-4" />
+                    🔄 Returning Patient
+                  </button>
+                </div>
+              </div>
+
+              {/* ===== PATIENT INFORMATION FORM (WITH BIRTHDATE) ===== */}
               <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
                 <div className="mb-5 flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
@@ -505,8 +683,21 @@ export default function UserAppointmentCalendar() {
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Patient Information</h3>
                     <p className="text-sm text-slate-500">
-                      Please provide accurate booking details.
+                      {patientType === "existing" && selectedPatient && isVerified
+                        ? "✅ Using existing patient record. Changes will auto-sync."
+                        : "Please provide accurate booking details."}
                     </p>
+                    {patientType === "existing" && isSearching && (
+                      <p className="text-xs text-blue-600 mt-1 flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Searching for existing record...
+                      </p>
+                    )}
+                    {patientType === "existing" && searchError && !selectedPatient && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ No existing record found. You will be registered as a new patient.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -535,7 +726,12 @@ export default function UserAppointmentCalendar() {
                       max="999"
                       step="1"
                       value={age}
-                      onChange={(e) => setAge(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length <= 3) {
+                          setAge(val);
+                        }
+                      }}
                       className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                       placeholder="Enter age"
                     />
@@ -544,7 +740,6 @@ export default function UserAppointmentCalendar() {
                     )}
                   </div>
 
-                  {/* ✅ NEW – Gender field */}
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-700">Gender</label>
                     <select
@@ -555,6 +750,7 @@ export default function UserAppointmentCalendar() {
                       <option value="">Select gender</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
+                      <option value="Other">Other</option>
                     </select>
                     {formErrors.gender && (
                       <p className="mt-2 text-xs font-medium text-red-500">{formErrors.gender}</p>
@@ -583,8 +779,8 @@ export default function UserAppointmentCalendar() {
                           contactNumber.length === 11
                             ? "text-emerald-600"
                             : contactNumber.length > 0
-                              ? "text-amber-600"
-                              : "text-slate-400"
+                            ? "text-amber-600"
+                            : "text-slate-400"
                         }`}
                       >
                         {contactNumber.length}/11
@@ -596,23 +792,44 @@ export default function UserAppointmentCalendar() {
                       </p>
                     )}
                   </div>
-                </div>
 
-                <div className="mt-5">
-                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Stethoscope className="h-4 w-4" />
-                    Service
-                  </label>
-                  <select
-                    value={serviceType}
-                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  >
-                    <option value="ear">Ear</option>
-                    <option value="nose">Nose</option>
-                    <option value="throat">Throat</option>
-                    <option value="aesthetics">Aesthetics</option>
-                  </select>
+                  <div>
+                    <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Calendar className="h-4 w-4" />
+                      Birthdate
+                    </label>
+                    <input
+                      type="date"
+                      value={birthdate}
+                      onChange={(e) => setBirthdate(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    />
+                    {formErrors.birthdate && (
+                      <p className="mt-2 text-xs font-medium text-red-500">{formErrors.birthdate}</p>
+                    )}
+                    {patientType === "existing" && selectedPatient && isVerified && (
+                      <p className="mt-1 text-xs text-emerald-600">
+                        ✅ Birthdate matches existing record
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Stethoscope className="h-4 w-4" />
+                      Service
+                    </label>
+                    <select
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    >
+                      <option value="ear">Ear</option>
+                      <option value="nose">Nose</option>
+                      <option value="throat">Throat</option>
+                      <option value="aesthetics">Aesthetics</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -647,7 +864,9 @@ export default function UserAppointmentCalendar() {
                 >
                   {isFormComplete
                     ? "Select Appointment Date & Time"
-                    : "Complete patient details first"}
+                    : patientType === "existing" && !selectedPatient
+                    ? "Enter your name and birthdate to verify"
+                    : "Complete all patient details"}
                 </button>
               </div>
             </div>
@@ -938,6 +1157,12 @@ export default function UserAppointmentCalendar() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-medium text-slate-500">Age</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{age}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">Birthdate</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {birthdate ? new Date(birthdate).toLocaleDateString() : "—"}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-medium text-slate-500">Date</p>

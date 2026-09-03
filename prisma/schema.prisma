@@ -68,6 +68,7 @@ model Patient {
   age       Int?
   gender    String?
   address   String?
+  birthdate DateTime? // ✅ BAGO
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -77,6 +78,7 @@ model Patient {
   clinicalFindings ClinicalFinding[]
 
   @@index([email])
+  @@index([birthdate])
   @@map("patients")
 }
 
@@ -207,37 +209,34 @@ model SoapNote {
   @@index([patientId])
 }
 
-model Medication {
-  id            String         @id @default(cuid())
-  generic       String
-  brandName     String?
-  quantity      String?
-  dosage        String?
-  instructions  String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  prescriptions Prescription[]
-
-  @@index([generic])
-  @@index([brandName])
-}
-
-model Prescription {
-  id           String      @id @default(cuid())
-  soapNoteId   String
-  medicationId String?
+model Medicine {
+  id           String   @id @default(cuid())
   generic      String
   brandName    String?
   quantity     String?
   dosage       String?
   instructions String?
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  soapNote     SoapNote    @relation(fields: [soapNoteId], references: [id], onDelete: Cascade)
-  medication   Medication? @relation(fields: [medicationId], references: [id], onDelete: SetNull)
+  @@map("medicines")
+  @@index([generic])
+  @@index([brandName])
+}
+
+model Prescription {
+  id           String   @id @default(cuid())
+  soapNoteId   String
+  generic      String
+  brandName    String?
+  quantity     String?
+  dosage       String?
+  instructions String?
+  createdAt    DateTime @default(now())
+
+  soapNote     SoapNote @relation(fields: [soapNoteId], references: [id], onDelete: Cascade)
 
   @@index([soapNoteId])
-  @@index([medicationId])
   @@index([generic])
 }
 
@@ -296,25 +295,29 @@ model ClinicalTemplate {
 
   @@unique([userId, anatomy, name])
   @@index([userId, anatomy])
-} model Announcement {
+}
+
+model Announcement {
   id           String   @id @default(cuid())
   title        String
   description  String
-  bannerImage  String?  // optional
-  status       String   @default("Published") // "Published" | "Draft" | "Archived"
+  bannerImage  String?
+  status       String   @default("Published")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  createdBy    String?  // admin user ID (kung may users table ka)
+  createdBy    String?
   
   @@map("announcements")
-} model Service {
+}
+
+model Service {
   id          String   @id @default(cuid())
   name        String
   category    String
   description String
-  status      String   @default("Active") // Active | Inactive
+  status      String   @default("Active")
   image       String?
-  details     Json     // stores the nested details object
+  details     Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -336,7 +339,7 @@ model BlogPost {
   image     String?
   date      String
   author    String
-  status    String   @default("Draft") // Published | Draft
+  status    String   @default("Draft")
   embedUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

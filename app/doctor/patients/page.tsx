@@ -23,9 +23,13 @@ type AppointmentStatus = "PENDING" | "CONFIRMED" | "ACCEPTED" | "CANCELLED" | "C
 
 interface Patient {
   id: string;
-  name: string | null;
+  name: string;
   email: string | null;
   image?: string | null;
+  age?: number | null;
+  phone?: string | null;
+  gender?: string | null;
+  address?: string | null;
   createdAt: string;
   latestAppointmentStatus?: AppointmentStatus | null;
   hasTodayAppointment?: boolean;
@@ -61,7 +65,21 @@ export default function DoctorPatientsPage() {
       const res = await fetch("/api/doctor/patients");
       if (!res.ok) throw new Error("Failed to fetch patients");
       const data = await res.json();
-      setPatients(data.patients || []);
+      setPatients(
+        (data.patients || []).map((p: any) => ({
+          id: p.id,
+          name: p.name || "N/A",
+          email: p.email || null,
+          image: p.image || null,
+          age: p.age ?? null,
+          phone: p.phone ?? null,
+          gender: p.gender ?? null,
+          address: p.address ?? null,
+          createdAt: p.createdAt,
+          latestAppointmentStatus: p.latestAppointmentStatus || null,
+          hasTodayAppointment: p.hasTodayAppointment || false,
+        }))
+      );
     } catch (err) {
       console.error(err);
       setError("Failed to load patients");
@@ -312,7 +330,7 @@ export default function DoctorPatientsPage() {
                   ) : (
                     currentPatients.map((p) => (
                       <tr key={p.id} className="transition hover:bg-cyan-50/40">
-                        <Td className="py-4"><div className="flex items-center gap-3">{p.image ? <img src={p.image} alt={p.name || "Patient"} className="h-11 w-11 rounded-full border border-slate-200 object-cover shadow-sm" /> : <div className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm ${getAvatarColor(p.name || "A")}`}>{p.name?.charAt(0)?.toUpperCase() || "A"}</div>}<div><p className="font-semibold text-slate-800">{p.name || "N/A"}</p><p className="text-xs text-slate-400">Patient ID: {p.id.slice(0, 8)}</p></div></div></Td>
+                        <Td className="py-4"><div className="flex items-center gap-3">{p.image ? <img src={p.image} alt={p.name} className="h-11 w-11 rounded-full border border-slate-200 object-cover shadow-sm" /> : <div className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm ${getAvatarColor(p.name)}`}>{p.name?.charAt(0)?.toUpperCase() || "A"}</div>}<div><p className="font-semibold text-slate-800">{p.name}</p><p className="text-xs text-slate-400">Patient ID: {p.id.slice(0, 8)}</p></div></div></Td>
                         <Td><span className="text-slate-600">{p.email || "No email"}</span></Td>
                         <Td><span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{new Date(p.createdAt).toLocaleDateString()}</span></Td>
                         <Td><div className="flex justify-end gap-2 pr-4">
@@ -341,7 +359,17 @@ export default function DoctorPatientsPage() {
           )}
 
           {/* Modals */}
-          <PatientDetailsModal key={`details-${medicalHistoryKey}`} open={showDetails} onClose={() => setShowDetails(false)} patient={selected} tab={tab} setTab={setTab} onCreateMedicalHistory={() => setShowMedicalHistoryModal(true)} onRefreshMedicalHistory={handleMedicalHistorySuccess} onRefreshPatient={refreshPatient} />
+          <PatientDetailsModal
+            key={`details-${medicalHistoryKey}`}
+            open={showDetails}
+            onClose={() => setShowDetails(false)}
+            patient={selected}
+            tab={tab}
+            setTab={setTab}
+            onCreateMedicalHistory={() => setShowMedicalHistoryModal(true)}
+            onRefreshMedicalHistory={handleMedicalHistorySuccess}
+            onPatientUpdated={fetchPatients}
+          />
           <SoapNoteModal open={showSoap} onClose={() => { setShowSoap(false); fetchPatients(); }} patient={selected} />
           <AddPatientModal open={showAddPatient} onClose={() => setShowAddPatient(false)} onSuccess={fetchPatients} />
           <MedicalHistoryModal key={`medical-history-${medicalHistoryKey}`} open={showMedicalHistoryModal} onClose={() => setShowMedicalHistoryModal(false)} patientId={selected?.id} onSuccess={handleMedicalHistorySuccess} />

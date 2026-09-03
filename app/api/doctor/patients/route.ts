@@ -22,13 +22,11 @@ export async function GET(_request: NextRequest) {
 
     const doctorId = user.id;
 
-    // Fetch ALL appointments assigned to this doctor (no status filter)
     const appointments = await prisma.appointment.findMany({
       where: {
         assignedToRole: "DOCTOR",
         assignedToUserId: doctorId,
         patientId: { not: null },
-        // removed status filter to include CANCELLED, COMPLETED, etc.
       },
       include: {
         patient: {
@@ -54,13 +52,11 @@ export async function GET(_request: NextRequest) {
       orderBy: [{ appointmentDate: "desc" }, { createdAt: "desc" }],
     });
 
-    // Deterministically pick the latest appointment per patient
     const sortedAppointments = [...appointments].sort((a, b) => {
       const aDate = a.appointmentDate instanceof Date ? a.appointmentDate : new Date(a.appointmentDate);
       const bDate = b.appointmentDate instanceof Date ? b.appointmentDate : new Date(b.appointmentDate);
       const diff = bDate.getTime() - aDate.getTime();
       if (diff !== 0) return diff;
-
       const aCreated = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
       const bCreated = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
       return bCreated.getTime() - aCreated.getTime();
@@ -74,7 +70,6 @@ export async function GET(_request: NextRequest) {
       }
     }
 
-    // Determine which patients have an appointment today (any status)
     const today = new Date();
     const todayY = today.getFullYear();
     const todayM = today.getMonth();
@@ -92,18 +87,20 @@ export async function GET(_request: NextRequest) {
     const transformedPatients = Array.from(latestPerPatient.values()).map((appt) => {
       const patient = appt.patient!;
       const latestSoapNote = patient.soapNotes?.[0] ?? null;
-
       return {
         id: patient.id,
         name: patient.name || appt.fullName || "N/A",
         email: patient.email || appt.email || null,
+        phone: patient.phone || null,
+        age: patient.age || null,
+        gender: patient.gender || null,
+        address: patient.address || null,
         image: null,
         createdAt: patient.createdAt.toISOString(),
         chiefComplaints: latestSoapNote?.chiefComplaint || null,
         remarks: latestSoapNote?.remarks || null,
         notes: latestSoapNote?.diagnosis || null,
         soapNote: latestSoapNote,
-
         latestAppointmentStatus: appt.status ?? null,
         hasTodayAppointment: hasTodayAppointment.has(patient.id),
       };

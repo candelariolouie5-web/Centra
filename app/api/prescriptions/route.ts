@@ -33,15 +33,15 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Find or create medication
-      let medication = await tx.medication.findFirst({
+      // Find or create medicine (model name is 'medicine' in Prisma)
+      let medicine = await tx.medicine.findFirst({
         where: {
           generic: generic.trim(),
           brandName: brandName?.trim() || null,
         },
       });
-      if (!medication) {
-        medication = await tx.medication.create({
+      if (!medicine) {
+        medicine = await tx.medicine.create({
           data: {
             generic: generic.trim(),
             brandName: brandName?.trim() || null,
@@ -61,16 +61,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create prescription
+      // Create prescription – copy fields from medicine, no foreign key
       const prescription = await tx.prescription.create({
         data: {
           soapNoteId: soapNote.id,
-          medicationId: medication.id,
-          generic: medication.generic,
-          brandName: medication.brandName,
-          quantity: medication.quantity,
-          dosage: medication.dosage,
-          instructions: medication.instructions,
+          generic: medicine.generic,
+          brandName: medicine.brandName,
+          quantity: medicine.quantity,
+          dosage: medicine.dosage,
+          instructions: medicine.instructions,
         },
       });
 

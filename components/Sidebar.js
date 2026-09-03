@@ -17,7 +17,8 @@ import {
   Stethoscope,
   ClipboardList,
   Megaphone,
-  LayoutGrid, // <-- ADD THIS
+  LayoutGrid,
+  Pill, // <-- ADDED for Medicine icon
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -102,6 +103,19 @@ export default function Sidebar() {
               <BarChart3 size={18} />
               <span>Analytics</span>
             </Link>
+
+            {/* MEDICINE MANAGEMENT - UPDATED to match others */}
+            <Link
+              href="/admin/medicines"
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
+                pathname === "/admin/medicines"
+                  ? "bg-indigo-900 text-indigo-200 font-medium"
+                  : "hover:bg-gray-800 hover:text-white"
+              }`}
+            >
+              <Pill size={18} />
+              <span>Medicine Management</span>
+            </Link>
           </nav>
         </div>
       </div>
@@ -110,10 +124,10 @@ export default function Sidebar() {
       <div className="p-6 border-t border-gray-800 space-y-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-indigo-800 flex items-center justify-center">
-            <span className="text-indigo-200 font-medium">GX</span>
+            <span className="text-indigo-200 font-medium">A</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-white">Gustavo Xavier</p>
+            <p className="text-sm font-medium text-white"></p>
             <span className="text-xs text-indigo-400">Admin</span>
           </div>
         </div>

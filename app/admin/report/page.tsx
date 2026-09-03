@@ -10,10 +10,11 @@ import {
   Search,
   User,
   Mail,
+  Info,
 } from "lucide-react";
 
-// ---------- TYPE DEFINITIONS (unchanged) ----------
-type ReportTemplate = "medical" | "prescription" | "medcert";
+// ---------- TYPE DEFINITIONS ----------
+type ReportTemplate = "patient-info" | "medical" | "prescription" | "medcert";
 
 type Patient = {
   id: string;
@@ -78,7 +79,7 @@ type ReportData = {
   medicalHistories: MedicalHistory[];
 };
 
-// ---------- UTILITY FUNCTIONS (unchanged) ----------
+// ---------- UTILITY FUNCTIONS ----------
 function formatDate(value?: string | Date | null) {
   if (!value) return "N/A";
   const date = new Date(value);
@@ -116,7 +117,93 @@ function getDiagnosticImages(note: SoapNote | null) {
   return note.imageData ? [note.imageData] : [];
 }
 
-// ---------- REPORT TEMPLATES (completely unchanged) ----------
+// ---------- PATIENT INFORMATION TEMPLATE ----------
+function PatientInfoTemplate({ patient }: { patient: Patient }) {
+  return (
+    <div className="report-content mx-auto w-full max-w-[860px] rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:mx-0 print:max-w-full print:rounded-none print:border-none print:p-0 print:shadow-none">
+      <div className="mb-6 flex items-start justify-between gap-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">
+            LOGO
+          </div>
+          <div>
+            <p className="font-bold tracking-wide text-slate-900">CENTRA</p>
+            <p className="text-[11px] text-slate-600">ENT & Aesthetic Clinic</p>
+          </div>
+        </div>
+        <div className="text-right text-[11px] leading-tight text-slate-600">
+          <p className="font-bold text-slate-900">
+            JOHN EMMANUEL ONG, MD, FPAAS, FICS, FPFCS
+          </p>
+          <p>ENT, Facial Plastic & Cosmetic Surgery</p>
+          <p>1488 A. Apolinario St., Makati City</p>
+          <p>Mon-Sat 9AM-5PM</p>
+        </div>
+      </div>
+      <div className="mb-4 h-px bg-slate-200" />
+      
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+            Patient Information
+          </h3>
+          <span className="text-xs text-slate-400">Basic profile and contact details.</span>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Full Name
+            </p>
+            <p className="font-medium text-slate-900">{patient.name}</p>
+          </div>
+          
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Age
+            </p>
+            <p className="font-medium text-slate-900">{cleanText(patient.age)}</p>
+          </div>
+          
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Gender
+            </p>
+            <p className="font-medium text-slate-900">{cleanText(patient.gender)}</p>
+          </div>
+          
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Mobile Number
+            </p>
+            <p className="font-medium text-slate-900">{cleanText(patient.phone)}</p>
+          </div>
+          
+          <div className="sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Address
+            </p>
+            <p className="font-medium text-slate-900">{cleanText(patient.address)}</p>
+          </div>
+          
+          <div className="sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Email Address
+            </p>
+            <p className="font-medium text-slate-900">{cleanText(patient.email)}</p>
+          </div>
+        </div>
+      </div>
+
+      <footer className="mt-10 border-t border-slate-200 pt-6 text-sm text-slate-600 print:mt-8">
+        <p>Patient ID: {patient.id}</p>
+        <p>Date Registered: {formatDate(patient.createdAt)}</p>
+      </footer>
+    </div>
+  );
+}
+
+// ---------- REPORT TEMPLATES ----------
 function PatientHeader({ patient, title }: { patient: Patient; title: string }) {
   return (
     <header className="mb-8 flex items-start justify-between gap-6 border-b border-slate-200 pb-6 print:mb-6 print:pb-4">
@@ -246,11 +333,11 @@ function PrescriptionTemplate({
   soapNote: SoapNote | null;
 }) {
   return (
-    <div className="report-content mx-auto w-full max-w-[860px] rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:max-w-full print:rounded-none print:border-none print:p-0 print:shadow-none">
+    <div className="report-content w-full rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:rounded-none print:border-none print:p-0 print:shadow-none">
+      <PatientHeader patient={patient} title="Prescription Report" />
+
+      {/* Doctor Info */}
       <div className="mb-5 text-center">
-        <div className="mx-auto mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold tracking-wide text-cyan-700">
-          Prescription Form
-        </div>
         <h1 className="text-base font-bold uppercase tracking-wide text-slate-900">
           JOHN EMMANUEL L. ONG, M.D.
         </h1>
@@ -263,21 +350,19 @@ function PrescriptionTemplate({
           Mon-Sat 9am-6pm By Appointment
         </p>
       </div>
+
       <div className="mb-5 h-px bg-slate-200" />
-      <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700">
-        <div className="flex flex-wrap justify-between gap-3">
-          <p>Name: {patient.name}</p>
-          <p>Age: {cleanText(patient.age)}</p>
-          <p>Sex: {cleanText(patient.gender)}</p>
+
+      {/* Diagnosis */}
+      {soapNote?.diagnosis && (
+        <div className="mb-5">
+          <p className="text-sm">
+            <span className="font-semibold">Diagnosis:</span> {soapNote.diagnosis}
+          </p>
         </div>
-        <div className="mt-2 flex flex-wrap justify-between gap-3">
-          <p>Address: {cleanText(patient.address)}</p>
-          <p>Date: {formatDate(new Date())}</p>
-        </div>
-        {soapNote?.diagnosis && (
-          <p className="mt-2">Diagnosis: {soapNote.diagnosis}</p>
-        )}
-      </div>
+      )}
+
+      {/* Prescription Content */}
       <div className="flex gap-4">
         <div className="text-6xl font-serif leading-none text-cyan-700">℞</div>
         <div className="flex-1 space-y-4 text-sm">
@@ -307,6 +392,8 @@ function PrescriptionTemplate({
           )}
         </div>
       </div>
+
+      {/* Footer with Signature */}
       <div className="mt-16 text-sm text-slate-700">
         <div className="flex justify-end">
           <div className="text-center">
@@ -314,7 +401,7 @@ function PrescriptionTemplate({
             <p className="mt-1 font-medium">John Emmanuel L. Ong, M.D.</p>
           </div>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex gap-8">
           <p>Lic No: ____________________</p>
           <p>PTR No: ____________________</p>
         </div>
@@ -330,40 +417,24 @@ function MedicalCertificate({
   patient: Patient;
   soapNote: SoapNote | null;
 }) {
-  const diagnosticImages = getDiagnosticImages(soapNote);
   return (
-    <div className="report-content mx-auto w-full max-w-[860px] rounded-[28px] border border-slate-200 bg-white p-8 text-[13px] leading-relaxed shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:mx-0 print:max-w-full print:rounded-none print:border-none print:p-0 print:shadow-none">
-      <div className="mb-6 flex items-start justify-between gap-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-500">
-            LOGO
-          </div>
-          <div>
-            <p className="font-bold tracking-wide text-slate-900">CENTRA</p>
-            <p className="text-[11px] text-slate-600">ENT & Aesthetic Clinic</p>
-          </div>
-        </div>
-        <div className="text-right text-[11px] leading-tight text-slate-600">
-          <p className="font-bold text-slate-900">
-            JOHN EMMANUEL ONG, MD, FPAAS, FICS, FPFCS
-          </p>
-          <p>ENT, Facial Plastic & Cosmetic Surgery</p>
-          <p>1488 A. Apolinario St., Makati City</p>
-          <p>Mon-Sat 9AM-5PM</p>
-        </div>
-      </div>
-      <div className="mb-4 h-px bg-slate-200" />
+    <div className="report-content w-full rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] print:rounded-none print:border-none print:p-0 print:shadow-none">
+      <PatientHeader patient={patient} title="Medical Certificate" />
+
       <div className="mb-5">
         <p className="inline-block rounded-lg border border-slate-300 bg-slate-50 px-4 py-1 text-slate-700">
           {formatDate(new Date())}
         </p>
         <p className="mt-1 text-[10px] text-slate-500">Date</p>
       </div>
+      
       <h2 className="mb-6 text-center text-lg font-bold tracking-[0.24em] text-slate-900">
         MEDICAL CERTIFICATE
       </h2>
+      
       <div className="space-y-4 text-slate-700">
         <p>To whom it may concern:</p>
+        
         <p>
           This is to certify that{" "}
           <span className="border-b border-slate-800 px-4 font-semibold text-slate-900">
@@ -372,55 +443,18 @@ function MedicalCertificate({
           , {cleanText(patient.age)} years old, {cleanText(patient.gender)}, was
           seen and evaluated at Centra Clinic PH.
         </p>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="font-semibold text-slate-900">Clinical Information</p>
-          <div className="mt-3 space-y-2">
-            <p>
-              <span className="font-semibold">Chief Complaint:</span>{" "}
-              {cleanText(soapNote?.chiefComplaint)}
-            </p>
-            <p>
-              <span className="font-semibold">History of Illness:</span>{" "}
-              {cleanText(soapNote?.historyOfIllness)}
-            </p>
-            <p>
-              <span className="font-semibold">Diagnosis / Impression:</span>{" "}
-              {cleanText(soapNote?.diagnosis)}
-            </p>
-            <p>
-              <span className="font-semibold">Remarks:</span>{" "}
-              {cleanText(soapNote?.remarks)}
-            </p>
-          </div>
-        </div>
-        {diagnosticImages.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="mb-3 font-semibold text-slate-900">
-              Diagnostic Attachment
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {diagnosticImages.map((image, index) => (
-                <img
-                  key={index}
-                  src={image}
-                  alt={`Diagnostic ${index + 1}`}
-                  className="max-h-[320px] w-full rounded-xl border border-slate-200 bg-white object-contain"
-                />
-              ))}
-            </div>
-          </div>
-        )}
+
         <p>
-          Recommendation:{" "}
-          <span className="border-b border-slate-800 px-4 font-semibold text-slate-900">
-            {soapNote?.plan || soapNote?.followUp || "As clinically advised"}
-          </span>
+          The patient is declared fit to work/study and may resume normal 
+          activities effective immediately.
         </p>
+
         <p>
           This certificate is issued upon the request of the patient for whatever
           purpose it may serve, excluding legal matters.
         </p>
       </div>
+
       <div className="mt-12 text-right">
         <p className="inline-block border-b border-slate-800 px-10 font-semibold text-slate-900">
           Dr. John Emmanuel Ong
@@ -432,7 +466,7 @@ function MedicalCertificate({
   );
 }
 
-// ---------- MAIN PAGE COMPONENT (UI IMPROVED) ----------
+// ---------- MAIN PAGE COMPONENT ----------
 export default function ReportPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -445,7 +479,7 @@ export default function ReportPage() {
   const patientsBackPath = isDoctorPage ? "/doctor/patients" : "/admin/patients";
   const reportPath = isDoctorPage ? "/doctor/report" : "/admin/report";
 
-  const [template, setTemplate] = useState<ReportTemplate>("medical");
+  const [template, setTemplate] = useState<ReportTemplate>("patient-info");
   const [patientId, setPatientId] = useState("");
   const [data, setData] = useState<ReportData | null>(null);
 
@@ -457,12 +491,14 @@ export default function ReportPage() {
   const [error, setError] = useState("");
 
   const tabs = [
+    { key: "patient-info" as const, label: "Patient Information", icon: Info },
     { key: "medical" as const, label: "Medical History", icon: FileText },
     { key: "prescription" as const, label: "Prescription", icon: FileText },
     { key: "medcert" as const, label: "Medical Certificate", icon: FileText },
   ];
 
   const reportTitle = useMemo(() => {
+    if (template === "patient-info") return "Patient Information";
     if (template === "medical") return "Medical History Report";
     if (template === "prescription") return "Prescription Report";
     return "Medical Certificate";
@@ -552,10 +588,9 @@ export default function ReportPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50/30 print:bg-white">
-      {/* -------- STICKY HEADER (modern two‑row layout) -------- */}
+      {/* -------- STICKY HEADER -------- */}
       <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl print:hidden">
         <div className="px-6 py-3">
-          {/* Row 1: Title + Back */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -588,7 +623,6 @@ export default function ReportPage() {
             </button>
           </div>
 
-          {/* Row 2: Tabs (segmented control) + Actions */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex rounded-full bg-slate-100 p-1">
               {tabs.map((tab) => {
@@ -646,7 +680,6 @@ export default function ReportPage() {
               </p>
             </div>
 
-            {/* Search input with icon */}
             <div className="relative mb-5">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -751,6 +784,9 @@ export default function ReportPage() {
                 </div>
 
                 <div ref={reportRef} className="space-y-6 bg-white">
+                  {template === "patient-info" && (
+                    <PatientInfoTemplate patient={data.patient} />
+                  )}
                   {template === "medical" && (
                     <MedicalHistoryTemplate
                       patient={data.patient}

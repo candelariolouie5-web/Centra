@@ -29,6 +29,7 @@ import {
   Ear,
   Eye,
   Bone,
+  Printer,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Cell } from "recharts";
@@ -184,8 +185,6 @@ const COLOR_SCHEMES = [
   { bg: "bg-fuchsia-50", text: "text-fuchsia-600", border: "border-fuchsia-200", dot: "bg-fuchsia-500", fill: "#d946ef" },
 ];
 
-const SIMPLE_COLORS = ["#3b82f6", "#60a5fa", "#93c5fd", "#2563eb"];
-
 const CLINIC_TIME_BLOCKS = [
   "8:00 AM - 9:00 AM",
   "9:00 AM - 10:00 AM",
@@ -199,19 +198,19 @@ const CLINIC_TIME_BLOCKS = [
 ];
 
 // ─── UTILITIES ───
-function toNumber(value: unknown) {
+function toNumber(value: unknown): number {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
-function normalizeStatus(status: string) {
+function normalizeStatus(status: string): string {
   return status
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function getHourFromAppointmentTime(time?: string | null) {
+function getHourFromAppointmentTime(time?: string | null): number | null {
   if (!time) return null;
   const cleaned = time.trim().toUpperCase();
   const amPmMatch = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
@@ -230,7 +229,7 @@ function getHourFromAppointmentTime(time?: string | null) {
   return null;
 }
 
-function getTimeBlock(time?: string | null) {
+function getTimeBlock(time?: string | null): string {
   const hour = getHourFromAppointmentTime(time);
   if (hour === null) return "Unspecified";
   if (hour >= 8 && hour < 9) return "8:00 AM - 9:00 AM";
@@ -259,7 +258,7 @@ function groupCount<T>(
     .sort((a, b) => b.count - a.count);
 }
 
-async function safeJsonFetch(url: string) {
+async function safeJsonFetch(url: string): Promise<{ ok: boolean; json: any }> {
   const res = await fetch(url, {
     method: "GET",
     cache: "no-store",
@@ -350,20 +349,20 @@ export default function AnalyticsPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [selectedMonths, setSelectedMonths] = useState([
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
   ]);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState<number>(new Date().getFullYear());
 
   const [appointmentData, setAppointmentData] = useState<AppointmentBarItem[]>([]);
   const [consultationData, setConsultationData] = useState<ConsultationItem[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<TodayAppointment[]>([]);
   const [highestService, setHighestService] = useState<ServiceStat | null>(null);
   const [lowestService, setLowestService] = useState<ServiceStat | null>(null);
-  const [totalConsultations, setTotalConsultations] = useState(0);
+  const [totalConsultations, setTotalConsultations] = useState<number>(0);
   const [businessInsights, setBusinessInsights] = useState<BusinessInsights | null>(null);
   const [findingsData, setFindingsData] = useState<ClinicalFindingItem[]>([]);
-  const [apiError, setApiError] = useState("");
+  const [apiError, setApiError] = useState<string>("");
   const [prescriptionStats, setPrescriptionStats] = useState<PrescriptionStats | null>(null);
   const [ageDistribution, setAgeDistribution] = useState<AgeDistribution | null>(null);
   const [genderDistribution, setGenderDistribution] = useState<GenderDistribution | null>(null);
@@ -504,6 +503,387 @@ export default function AnalyticsPage() {
     }
   }, [mounted, refreshAnalytics]);
 
+  // ─── PRINT FUNCTION ───
+  const handlePrint = useCallback(() => {
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow) {
+      alert('Please allow popups for this site to print.');
+      return;
+    }
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const timeStr = now.toLocaleTimeString();
+
+    // ─── GROUP CONSULTATION DATA ───
+    const consultMap = new Map<string, number>();
+    consultationData.forEach((item) => {
+      const name = item.name.trim();
+      consultMap.set(name, (consultMap.get(name) || 0) + item.value);
+    });
+    const uniqueConsultation = Array.from(consultMap.entries()).map(([name, value]) => ({ name, value }));
+
+    // ─── GROUP STATUS DATA ───
+    const statusMap = new Map<string, { count: number; status: string }>();
+    if (businessInsights?.statusBreakdown) {
+      businessInsights.statusBreakdown.forEach((item) => {
+        let key = item.status.toLowerCase().trim();
+        if (['cancelled', 'rejected', 'cancelled/rejected', 'rejected/cancelled'].includes(key)) {
+          key = 'cancelled/rejected';
+        } else if (['confirmed', 'completed', 'done', 'finished'].includes(key)) {
+          key = 'confirmed/completed';
+        } else if (['pending', 'scheduled', 'waiting', 'booked'].includes(key)) {
+          key = 'pending/scheduled';
+        }
+        const display = key.split('/').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' / ');
+        if (statusMap.has(key)) {
+          statusMap.get(key)!.count += item.count;
+        } else {
+          statusMap.set(key, { count: item.count, status: display });
+        }
+      });
+    }
+    const groupedStatus = Array.from(statusMap.values());
+
+    // ─── TODAY DATA ───
+    const todayStatusMap = new Map<string, number>();
+    todayAppointments.forEach((item) => {
+      const s = normalizeStatus(item.status);
+      todayStatusMap.set(s, (todayStatusMap.get(s) || 0) + 1);
+    });
+    const todayStatus = Array.from(todayStatusMap.entries()).map(([name, count]) => ({ name, count }));
+
+    const todayServiceMap = new Map<string, number>();
+    todayAppointments.forEach((item) => {
+      const s = item.serviceType || "N/A";
+      todayServiceMap.set(s, (todayServiceMap.get(s) || 0) + 1);
+    });
+    const todayService = Array.from(todayServiceMap.entries()).map(([name, count]) => ({ name, count }));
+
+    const todayTimeMap = new Map<string, number>();
+    todayAppointments.forEach((item) => {
+      const b = getTimeBlock(item.appointmentTime);
+      todayTimeMap.set(b, (todayTimeMap.get(b) || 0) + 1);
+    });
+    const todayTime = Array.from(todayTimeMap.entries()).map(([name, count]) => ({ name, count }));
+
+    // ─── METRICS ───
+    const totalBookings = appointmentData.reduce((sum, item) => sum + toNumber(item.count), 0);
+    const uniquePatients = new Set(todayAppointments.map((item) => item.fullName)).size;
+    const cancellationRate = businessInsights?.cancellationRate || 0;
+
+    // ─── BUILD HTML ───
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Centra Clinic - Analytics Report</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; padding:30px; background:#f1f5f9; color:#0f172a; }
+    .container { max-width:1100px; margin:0 auto; background:white; border-radius:16px; padding:35px; box-shadow:0 4px 24px rgba(0,0,0,0.06); }
+    .header { text-align:center; border-bottom:2px solid #e2e8f0; padding-bottom:20px; margin-bottom:28px; }
+    .header .clinic { color:#6366f1; font-weight:700; font-size:14px; letter-spacing:1px; }
+    .header h1 { font-size:24px; font-weight:700; margin:4px 0; }
+    .header p { color:#64748b; font-size:13px; }
+    .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+    .grid-4-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    .card { border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; background:#f8fafc; }
+    .card .lbl { font-size:10px; text-transform:uppercase; font-weight:600; color:#64748b; letter-spacing:0.5px; }
+    .card .val { font-size:26px; font-weight:700; color:#0f172a; margin-top:3px; }
+    .card .sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+    .section { margin-bottom:26px; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:10px; }
+    .section-title h2 { font-size:17px; font-weight:600; }
+    .section-title .badge { font-size:11px; background:#e2e8f0; padding:2px 12px; border-radius:20px; color:#475569; }
+    .subtitle { font-size:12px; color:#64748b; margin-bottom:10px; }
+    .chart-box { border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; background:white; }
+    .chart-box h3 { font-size:13px; font-weight:600; margin-bottom:2px; }
+    .chart-box .sub { font-size:11px; color:#94a3b8; margin-bottom:8px; }
+    .bar-container { display:flex; flex-direction:column; gap:5px; }
+    .bar-row { display:flex; align-items:center; gap:8px; }
+    .bar-label { width:100px; font-size:12px; font-weight:500; flex-shrink:0; text-align:right; }
+    .bar-track { flex:1; height:20px; background:#f1f5f9; border-radius:4px; overflow:hidden; }
+    .bar-fill { height:100%; border-radius:4px; }
+    .bar-val { font-size:12px; font-weight:600; width:32px; flex-shrink:0; }
+    .tag-wrap { display:flex; flex-wrap:wrap; gap:6px; padding:4px 0; }
+    .tag { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:16px; font-size:12px; font-weight:500; border:1px solid #e2e8f0; background:#f8fafc; }
+    .tag-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .tag-pct { color:#64748b; font-weight:400; font-size:11px; }
+    .findings-list { font-size:12px; margin-top:4px; }
+    .findings-row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #f1f5f9; }
+    .findings-row:last-child { border-bottom:none; }
+    .findings-row .cnt { font-weight:600; }
+    .footer { margin-top:28px; padding-top:14px; border-top:1px solid #e2e8f0; text-align:center; font-size:11px; color:#94a3b8; }
+    @media print { body { padding:10px; background:white; } .container { box-shadow:none; padding:15px; } }
+    @media (max-width:768px) { .grid-4{grid-template-columns:1fr 1fr;} .grid-2{grid-template-columns:1fr;} .grid-3{grid-template-columns:1fr;} .grid-4-cards{grid-template-columns:1fr 1fr;} .bar-label{width:70px;font-size:11px;} }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="clinic">🏥 CENTRA CLINIC</div>
+    <h1>Analytics Report</h1>
+    <p>Generated: ${dateStr} at ${timeStr}</p>
+  </div>
+
+  <div class="grid-4-cards">
+    <div class="card"><div class="lbl">Total Bookings</div><div class="val">${totalBookings}</div><div class="sub">${businessInsights?.bookingGrowthPercentage||0}% vs last month</div></div>
+    <div class="card"><div class="lbl">Patients Today</div><div class="val">${uniquePatients}</div></div>
+    <div class="card"><div class="lbl">Consultations</div><div class="val">${totalConsultations}</div></div>
+    <div class="card"><div class="lbl">Cancellation Rate</div><div class="val">${cancellationRate}%</div></div>
+  </div>`;
+
+    // ─── CONSULTATION ───
+    if (uniqueConsultation.length > 0) {
+      const total = uniqueConsultation.reduce((s, i) => s + i.value, 0);
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Consultation Service Distribution</h2><span class="badge">${uniqueConsultation.length} services</span></div>
+    <div class="subtitle">Service mix breakdown</div>
+    <div class="chart-box">
+      <div class="tag-wrap">`;
+      uniqueConsultation.forEach((item, i) => {
+        const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+        const color = COLOR_SCHEMES[(i + 3) % COLOR_SCHEMES.length].fill;
+        html += `<span class="tag"><span class="tag-dot" style="background:${color}"></span>${item.name} <span class="tag-pct">(${pct}%)</span></span>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── STATUS ───
+    if (groupedStatus.length > 0) {
+      const total = groupedStatus.reduce((s, i) => s + i.count, 0);
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Appointment Status Breakdown</h2><span class="badge">${groupedStatus.length} statuses</span></div>
+    <div class="subtitle">Current status distribution</div>
+    <div class="chart-box">
+      <div class="tag-wrap">`;
+      groupedStatus.forEach((item, i) => {
+        const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : 0;
+        const color = COLOR_SCHEMES[(i + 5) % COLOR_SCHEMES.length].fill;
+        html += `<span class="tag"><span class="tag-dot" style="background:${color}"></span>${item.status} <span class="tag-pct">(${pct}%)</span></span>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── SERVICE DEMAND ───
+    if (businessInsights?.serviceStats && businessInsights.serviceStats.length > 0) {
+      const maxVal = Math.max(...businessInsights.serviceStats.map(s => s.count));
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Service Demand Ranking</h2><span class="badge">Most booked</span></div>
+    <div class="subtitle">Popularity of services</div>
+    <div class="chart-box">
+      <div class="bar-container">`;
+      businessInsights.serviceStats.forEach((item) => {
+        const pct = maxVal > 0 ? (item.count / maxVal) * 100 : 0;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label">${item.name}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#8b5cf6"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── BUSIEST DAYS ───
+    if (businessInsights?.dayStats && businessInsights.dayStats.length > 0) {
+      const maxVal = Math.max(...businessInsights.dayStats.map(d => d.count));
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Busiest Booking Days</h2><span class="badge">Weekly</span></div>
+    <div class="subtitle">Day-of-week popularity</div>
+    <div class="chart-box">
+      <div class="bar-container">`;
+      businessInsights.dayStats.forEach((item) => {
+        const pct = maxVal > 0 ? (item.count / maxVal) * 100 : 0;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label">${item.day}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#14b8a6"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── PEAK HOURS ───
+    if (businessInsights?.timeBlockStats && businessInsights.timeBlockStats.length > 0) {
+      const maxVal = Math.max(...businessInsights.timeBlockStats.map(t => t.count));
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Peak Booking Sessions</h2><span class="badge">Time slots</span></div>
+    <div class="subtitle">Time-of-day distribution</div>
+    <div class="chart-box">
+      <div class="bar-container">`;
+      businessInsights.timeBlockStats.forEach((item) => {
+        const pct = maxVal > 0 ? (item.count / maxVal) * 100 : 0;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label" style="width:130px;font-size:11px;">${item.timeBlock}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#06b6d4"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── DOCTOR WORKLOAD ───
+    if (businessInsights?.doctorWorkload && businessInsights.doctorWorkload.length > 0) {
+      const maxVal = Math.max(...businessInsights.doctorWorkload.map(d => d.count));
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Doctor Workload</h2><span class="badge">Appointments</span></div>
+    <div class="subtitle">Appointments per doctor</div>
+    <div class="chart-box">
+      <div class="bar-container">`;
+      businessInsights.doctorWorkload.forEach((item) => {
+        const pct = maxVal > 0 ? (item.count / maxVal) * 100 : 0;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label">${item.doctorName}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#6366f1"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    // ─── CLINICAL FINDINGS ───
+    if (findingsData.length > 0) {
+      const parts = ['ear','nose','throat','head'];
+      const labels = ['Ear','Nose','Throat','Head'];
+      const emojis = ['👂','👃','🗣️','🧠'];
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Clinical Findings per Body Part</h2><span class="badge">${findingsData.length} findings</span></div>
+    <div class="subtitle">Distribution of diagnoses</div>
+    <div class="grid-4-cards">`;
+      parts.forEach((part, idx) => {
+        const data = findingsData.filter(f => f.anatomy.toLowerCase() === part);
+        const total = data.reduce((s, d) => s + d.count, 0);
+        html += `
+      <div class="chart-box">
+        <h3>${emojis[idx]} ${labels[idx]}</h3>
+        <div class="sub">${total} findings</div>
+        <div class="findings-list">`;
+        if (data.length > 0) {
+          data.forEach((item) => {
+            const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
+            html += `<div class="findings-row"><span>${item.diagnosis}</span><span class="cnt">${item.count} (${pct}%)</span></div>`;
+          });
+        } else {
+          html += `<span style="color:#94a3b8;font-size:12px;">No findings</span>`;
+        }
+        html += `</div></div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    // ─── PRESCRIPTION ───
+    if (prescriptionStats) {
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Prescription Analytics</h2><span class="badge">${prescriptionStats.totalPrescriptions} total</span></div>
+    <div class="grid-2">`;
+      const maxMed = prescriptionStats.topMeds.length > 0 ? Math.max(...prescriptionStats.topMeds.map(m => m.count)) : 1;
+      html += `
+      <div class="chart-box">
+        <h3>Top Prescribed Medications</h3>
+        <div class="sub">Most common prescriptions</div>
+        <div class="bar-container" style="margin-top:6px;">`;
+      prescriptionStats.topMeds.forEach((item) => {
+        const pct = (item.count / maxMed) * 100;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label" style="width:110px;font-size:11px;">${item.name}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#d946ef"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+      const maxTrend = Math.max(...prescriptionStats.monthlyTrend.map(m => m.count));
+      html += `
+      <div class="chart-box">
+        <h3>Prescription Trend</h3>
+        <div class="sub">Last 6 months</div>
+        <div class="bar-container" style="margin-top:6px;">`;
+      prescriptionStats.monthlyTrend.forEach((item) => {
+        const pct = maxTrend > 0 ? (item.count / maxTrend) * 100 : 0;
+        html += `
+        <div class="bar-row">
+          <span class="bar-label" style="width:60px;font-size:11px;">${item.month}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#06b6d4"></div></div>
+          <span class="bar-val">${item.count}</span>
+        </div>`;
+      });
+      html += `</div></div></div></div>`;
+    }
+
+    // ─── TODAY'S APPOINTMENTS ───
+    if (todayAppointments.length > 0) {
+      html += `
+  <div class="section">
+    <div class="section-title"><h2>Today's Appointments</h2><span class="badge">${todayAppointments.length} today</span></div>
+    <div class="grid-3">`;
+      html += `
+      <div class="chart-box"><h3>Status</h3>`;
+      todayStatus.forEach((item) => {
+        const pct = todayAppointments.length > 0 ? ((item.count / todayAppointments.length) * 100).toFixed(0) : 0;
+        html += `<div class="findings-row"><span>${item.name}</span><span class="cnt">${item.count} (${pct}%)</span></div>`;
+      });
+      html += `</div>`;
+      html += `
+      <div class="chart-box"><h3>Services</h3>`;
+      todayService.forEach((item) => {
+        const pct = todayAppointments.length > 0 ? ((item.count / todayAppointments.length) * 100).toFixed(0) : 0;
+        html += `<div class="findings-row"><span>${item.name}</span><span class="cnt">${item.count} (${pct}%)</span></div>`;
+      });
+      html += `</div>`;
+      html += `
+      <div class="chart-box"><h3>Time Sessions</h3>`;
+      todayTime.forEach((item) => {
+        const pct = todayAppointments.length > 0 ? ((item.count / todayAppointments.length) * 100).toFixed(0) : 0;
+        html += `<div class="findings-row"><span style="font-size:11px;">${item.name}</span><span class="cnt">${item.count} (${pct}%)</span></div>`;
+      });
+      html += `</div></div></div>`;
+    }
+
+    html += `
+  <div class="footer">
+    <p>Generated from Centra Clinic Analytics Dashboard • ${dateStr} at ${timeStr}</p>
+    <p style="margin-top:3px;">This report is for internal use only.</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 500);
+  }, [
+    appointmentData,
+    consultationData,
+    todayAppointments,
+    totalConsultations,
+    businessInsights,
+    findingsData,
+    prescriptionStats,
+  ]);
+
   // ─── MEMOIZED ───
   const totalBookedAppointments = useMemo(() => {
     return appointmentData.reduce((sum, item) => sum + toNumber(item.count), 0);
@@ -582,16 +962,20 @@ export default function AnalyticsPage() {
       .map((f) => ({ name: f.diagnosis, value: f.count }));
   }, [findingsData]);
 
-  // ─── Helper for age group summaries ───
   const ageSummary = useMemo(() => {
     if (!ageDistribution) return null;
     const total = ageDistribution.ageGroups.reduce((s, g) => s + g.count, 0);
     const pediatric = ageDistribution.ageGroups.find(g => g.group === "0-12")?.count || 0;
-    const adult = ageDistribution.ageGroups.find(g => g.group === "13-19")?.count || 0
-      + ageDistribution.ageGroups.find(g => g.group === "20-59")?.count || 0;
+    const adult = (ageDistribution.ageGroups.find(g => g.group === "13-19")?.count || 0) +
+      (ageDistribution.ageGroups.find(g => g.group === "20-59")?.count || 0);
     const geriatric = ageDistribution.ageGroups.find(g => g.group === "60+")?.count || 0;
     return { total, pediatric, adult, geriatric };
   }, [ageDistribution]);
+
+  const formatPercent = (percent: number | undefined): string => {
+    if (percent === undefined || percent === null) return "0%";
+    return `${(percent * 100).toFixed(0)}%`;
+  };
 
   // ─── RENDER ───
   return (
@@ -618,6 +1002,14 @@ export default function AnalyticsPage() {
             })}
           </div>
           <button
+            onClick={handlePrint}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Printer className="h-4 w-4" />
+            Print Report
+          </button>
+          <button
             onClick={refreshAnalytics}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
@@ -640,11 +1032,7 @@ export default function AnalyticsPage() {
           <SimpleMetricCard
             label="Total Bookings"
             value={totalBookedAppointments}
-            subLabel={
-              businessInsights
-                ? `${businessInsights.bookingGrowthPercentage}% vs last month`
-                : undefined
-            }
+            subLabel={businessInsights ? `${businessInsights.bookingGrowthPercentage}% vs last month` : undefined}
             icon={<TrendingUp className="h-5 w-5" />}
             colorIndex={0}
           />
@@ -668,7 +1056,7 @@ export default function AnalyticsPage() {
           />
         </section>
 
-        {/* ─── NEW: PATIENT DEMOGRAPHICS ─── */}
+        {/* PATIENT DEMOGRAPHICS */}
         {ageDistribution && genderDistribution && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-start justify-between">
@@ -680,13 +1068,10 @@ export default function AnalyticsPage() {
                     Avg age: {ageDistribution.avgAge}
                   </span>
                 </h3>
-                <p className="text-xs text-gray-500">
-                  Age groups and gender distribution of patients.
-                </p>
+                <p className="text-xs text-gray-500">Age groups and gender distribution of patients.</p>
               </div>
             </div>
 
-            {/* Summary cards */}
             {ageSummary && (
               <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 shadow-sm">
@@ -709,28 +1094,18 @@ export default function AnalyticsPage() {
             )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* Age group bar chart */}
               <SimpleChartCard title="" height={260} colorIndex={2}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={ageDistribution.ageGroups} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis type="number" stroke="#9ca3af" fontSize={12} allowDecimals={false} />
                     <YAxis type="category" dataKey="group" stroke="#9ca3af" fontSize={12} width={60} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
                     <Bar dataKey="count" name="Patients" fill={COLOR_SCHEMES[2].fill} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
 
-              {/* Gender pie chart */}
               <SimpleChartCard title="" height={260} colorIndex={3}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -742,33 +1117,15 @@ export default function AnalyticsPage() {
                       cy="50%"
                       innerRadius={40}
                       outerRadius={80}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                       labelLine={false}
                     >
                       {genderDistribution.genderData.map((_, index) => (
-                        <Cell
-                          key={index}
-                          fill={COLOR_SCHEMES[(index + 3) % COLOR_SCHEMES.length].fill}
-                        />
+                        <Cell key={index} fill={COLOR_SCHEMES[(index + 3) % COLOR_SCHEMES.length].fill} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
@@ -791,28 +1148,13 @@ export default function AnalyticsPage() {
               <input
                 type="number"
                 value={year}
-                onChange={(e) =>
-                  setYear(parseInt(e.target.value) || new Date().getFullYear())
-                }
+                onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
                 className="w-20 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
               />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {[
-              "Jan",
-              "Feb",
-              "Mar",
-              "Apr",
-              "May",
-              "Jun",
-              "Jul",
-              "Aug",
-              "Sep",
-              "Oct",
-              "Nov",
-              "Dec",
-            ].map((month, index) => (
+            {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, index) => (
               <label
                 key={month}
                 className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
@@ -826,13 +1168,9 @@ export default function AnalyticsPage() {
                   checked={selectedMonths.includes(index + 1)}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedMonths((prev) =>
-                        prev.includes(index + 1) ? prev : [...prev, index + 1]
-                      );
+                      setSelectedMonths((prev) => (prev.includes(index + 1) ? prev : [...prev, index + 1]));
                     } else {
-                      setSelectedMonths((prev) =>
-                        prev.filter((item) => item !== index + 1)
-                      );
+                      setSelectedMonths((prev) => prev.filter((item) => item !== index + 1));
                     }
                   }}
                   className="h-3 w-3 rounded border-gray-300 text-indigo-600"
@@ -845,13 +1183,9 @@ export default function AnalyticsPage() {
 
         {mounted && (
           <>
-            {/* ─── SECTION: Consultation Service Distribution (standalone) ─── */}
+            {/* CONSULTATION SERVICE DISTRIBUTION */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-1">
-              <SimpleChartCard
-                title="Consultation Service Distribution"
-                subtitle="Service mix"
-                colorIndex={3}
-              >
+              <SimpleChartCard title="Consultation Service Distribution" subtitle="Service mix" colorIndex={3}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -861,85 +1195,35 @@ export default function AnalyticsPage() {
                       cx="50%"
                       cy="50%"
                       outerRadius={120}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                       labelLine={false}
                     >
                       {consultationData.map((_, index) => (
-                        <Cell
-                          key={index}
-                          fill={COLOR_SCHEMES[(index + 3) % COLOR_SCHEMES.length].fill}
-                        />
+                        <Cell key={index} fill={COLOR_SCHEMES[(index + 3) % COLOR_SCHEMES.length].fill} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
             </section>
 
-            {/* SECTION: Service Demand & Status */}
+            {/* SERVICE DEMAND & STATUS */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SimpleChartCard
-                title="Service Demand Ranking"
-                subtitle="Most booked services"
-                colorIndex={4}
-              >
+              <SimpleChartCard title="Service Demand Ranking" subtitle="Most booked services" colorIndex={4}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={serviceDemandData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      type="number"
-                      stroke="#9ca3af"
-                      fontSize={12}
-                      allowDecimals={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      stroke="#9ca3af"
-                      fontSize={11}
-                      width={100}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Bookings"
-                      fill={COLOR_SCHEMES[4].fill}
-                      radius={[0, 4, 4, 0]}
-                    />
+                    <XAxis type="number" stroke="#9ca3af" fontSize={12} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" stroke="#9ca3af" fontSize={11} width={100} />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Bar dataKey="count" name="Bookings" fill={COLOR_SCHEMES[4].fill} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
 
-              <SimpleChartCard
-                title="Appointment Status Breakdown"
-                subtitle="Current status distribution"
-                colorIndex={5}
-              >
+              <SimpleChartCard title="Appointment Status Breakdown" subtitle="Current status distribution" colorIndex={5}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -950,170 +1234,68 @@ export default function AnalyticsPage() {
                       cy="50%"
                       innerRadius={45}
                       outerRadius={90}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                       labelLine={false}
                     >
                       {statusData.map((_, index) => (
-                        <Cell
-                          key={index}
-                          fill={COLOR_SCHEMES[(index + 5) % COLOR_SCHEMES.length].fill}
-                        />
+                        <Cell key={index} fill={COLOR_SCHEMES[(index + 5) % COLOR_SCHEMES.length].fill} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
             </section>
 
-            {/* SECTION: Days & Time */}
+            {/* DAYS & TIME */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SimpleChartCard
-                title="Busiest Booking Days"
-                subtitle="Day-of-week popularity"
-                colorIndex={6}
-              >
+              <SimpleChartCard title="Busiest Booking Days" subtitle="Day-of-week popularity" colorIndex={6}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dayDemandData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="day" stroke="#9ca3af" fontSize={12} />
                     <YAxis stroke="#9ca3af" fontSize={12} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Bookings"
-                      fill={COLOR_SCHEMES[6].fill}
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Bar dataKey="count" name="Bookings" fill={COLOR_SCHEMES[6].fill} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
 
-              <SimpleChartCard
-                title="Peak Booking Sessions"
-                subtitle="Time-of-day distribution"
-                colorIndex={7}
-              >
+              <SimpleChartCard title="Peak Booking Sessions" subtitle="Time-of-day distribution" colorIndex={7}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={timeDemandData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="timeBlock"
-                      stroke="#9ca3af"
-                      fontSize={10}
-                      interval={0}
-                      angle={-25}
-                      textAnchor="end"
-                      height={80}
-                    />
+                    <XAxis dataKey="timeBlock" stroke="#9ca3af" fontSize={10} interval={0} angle={-25} textAnchor="end" height={80} />
                     <YAxis stroke="#9ca3af" fontSize={12} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Bookings"
-                      fill={COLOR_SCHEMES[7].fill}
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Bar dataKey="count" name="Bookings" fill={COLOR_SCHEMES[7].fill} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
             </section>
 
-            {/* SECTION: Doctor Workload & Cancellation */}
+            {/* DOCTOR WORKLOAD & CANCELLATION */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SimpleChartCard
-                title="Doctor Workload"
-                subtitle="Appointments per doctor"
-                colorIndex={0}
-              >
+              <SimpleChartCard title="Doctor Workload" subtitle="Appointments per doctor" colorIndex={0}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={doctorWorkloadData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      type="number"
-                      stroke="#9ca3af"
-                      fontSize={12}
-                      allowDecimals={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="doctorName"
-                      stroke="#9ca3af"
-                      fontSize={11}
-                      width={120}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Appointments"
-                      fill={COLOR_SCHEMES[0].fill}
-                      radius={[0, 4, 4, 0]}
-                    />
+                    <XAxis type="number" stroke="#9ca3af" fontSize={12} allowDecimals={false} />
+                    <YAxis type="category" dataKey="doctorName" stroke="#9ca3af" fontSize={11} width={120} />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Bar dataKey="count" name="Appointments" fill={COLOR_SCHEMES[0].fill} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
 
-              <SimpleChartCard
-                title="Cancellation / Rejection Rate"
-                subtitle="Lost bookings"
-                colorIndex={1}
-              >
+              <SimpleChartCard title="Cancellation / Rejection Rate" subtitle="Lost bookings" colorIndex={1}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={[
-                        {
-                          name: "Cancelled / Rejected",
-                          value: businessInsights?.cancelledOrRejectedCount || 0,
-                        },
-                        {
-                          name: "Other Bookings",
-                          value: Math.max(
-                            (businessInsights?.currentMonthBookings || 0) -
-                              (businessInsights?.cancelledOrRejectedCount || 0),
-                            0
-                          ),
-                        },
+                        { name: "Cancelled / Rejected", value: businessInsights?.cancelledOrRejectedCount || 0 },
+                        { name: "Other Bookings", value: Math.max((businessInsights?.currentMonthBookings || 0) - (businessInsights?.cancelledOrRejectedCount || 0), 0) },
                       ]}
                       dataKey="value"
                       nameKey="name"
@@ -1121,29 +1303,14 @@ export default function AnalyticsPage() {
                       cy="50%"
                       innerRadius={45}
                       outerRadius={90}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                       labelLine={false}
                     >
                       <Cell fill={COLOR_SCHEMES[1].fill} />
                       <Cell fill="#e5e7eb" />
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
@@ -1157,9 +1324,7 @@ export default function AnalyticsPage() {
                     <Stethoscope className="h-4 w-4 text-gray-400" />
                     Clinical Findings per Body Part
                   </h3>
-                  <p className="text-xs text-gray-500">
-                    Distribution of diagnoses for Ear, Nose, Throat, and Head.
-                  </p>
+                  <p className="text-xs text-gray-500">Distribution of diagnoses for Ear, Nose, Throat, and Head.</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1193,45 +1358,19 @@ export default function AnalyticsPage() {
                                 cy="50%"
                                 innerRadius={30}
                                 outerRadius={60}
-                                label={({ name, percent }) =>
-                                  `${name} (${(percent * 100).toFixed(0)}%)`
-                                }
+                                label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                                 labelLine={false}
                                 fontSize={9}
                               >
                                 {item.data.map((_, index) => (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={COLOR_SCHEMES[(index + item.colorIndex) % COLOR_SCHEMES.length].fill}
-                                  />
+                                  <Cell key={`cell-${index}`} fill={COLOR_SCHEMES[(index + item.colorIndex) % COLOR_SCHEMES.length].fill} />
                                 ))}
                               </Pie>
-                              <Tooltip
-                                contentStyle={{
-                                  backgroundColor: "white",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "8px",
-                                  padding: "6px 10px",
-                                  fontSize: "11px",
-                                }}
-                              />
-                              <Legend
-                                layout="horizontal"
-                                verticalAlign="bottom"
-                                align="center"
-                                wrapperStyle={{ fontSize: "9px", paddingTop: "4px" }}
-                              />
+                              <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 10px", fontSize: "11px" }} />
+                              <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "9px", paddingTop: "4px" }} />
                             </>
                           ) : (
-                            <text
-                              x="50%"
-                              y="50%"
-                              textAnchor="middle"
-                              dominantBaseline="central"
-                              className="text-xs text-gray-400"
-                              fill="#9ca3af"
-                              fontSize="12"
-                            >
+                            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" className="text-xs text-gray-400" fill="#9ca3af" fontSize="12">
                               No findings
                             </text>
                           )}
@@ -1256,8 +1395,7 @@ export default function AnalyticsPage() {
                       </span>
                     </h3>
                     <p className="text-xs text-gray-500">
-                      Total prescriptions:{" "}
-                      <span className="font-bold text-gray-800">{prescriptionStats.totalPrescriptions}</span>
+                      Total prescriptions: <span className="font-bold text-gray-800">{prescriptionStats.totalPrescriptions}</span>
                     </p>
                   </div>
                 </div>
@@ -1269,34 +1407,10 @@ export default function AnalyticsPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={prescriptionStats.topMeds} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            type="number"
-                            stroke="#9ca3af"
-                            fontSize={12}
-                            allowDecimals={false}
-                          />
-                          <YAxis
-                            type="category"
-                            dataKey="name"
-                            stroke="#9ca3af"
-                            fontSize={11}
-                            width={120}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                              padding: "8px 12px",
-                              fontSize: "12px",
-                            }}
-                          />
-                          <Bar
-                            dataKey="count"
-                            name="Prescriptions"
-                            fill={COLOR_SCHEMES[6].fill}
-                            radius={[0, 4, 4, 0]}
-                          />
+                          <XAxis type="number" stroke="#9ca3af" fontSize={12} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" stroke="#9ca3af" fontSize={11} width={120} />
+                          <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                          <Bar dataKey="count" name="Prescriptions" fill={COLOR_SCHEMES[6].fill} radius={[0, 4, 4, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </SimpleChartCard>
@@ -1310,24 +1424,8 @@ export default function AnalyticsPage() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
                           <YAxis stroke="#9ca3af" fontSize={12} allowDecimals={false} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                              padding: "8px 12px",
-                              fontSize: "12px",
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="count"
-                            name="Prescriptions"
-                            stroke={COLOR_SCHEMES[7].fill}
-                            strokeWidth={2.5}
-                            dot={{ r: 4, fill: COLOR_SCHEMES[7].fill }}
-                            activeDot={{ r: 6 }}
-                          />
+                          <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px", fontSize: "12px" }} />
+                          <Line type="monotone" dataKey="count" name="Prescriptions" stroke={COLOR_SCHEMES[7].fill} strokeWidth={2.5} dot={{ r: 4, fill: COLOR_SCHEMES[7].fill }} activeDot={{ r: 6 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </SimpleChartCard>
@@ -1348,33 +1446,15 @@ export default function AnalyticsPage() {
                       cx="50%"
                       cy="50%"
                       outerRadius={75}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={({ name, percent }) => `${name} (${formatPercent(percent)})`}
                       labelLine={false}
                     >
                       {todayStatusData.map((_, index) => (
-                        <Cell
-                          key={index}
-                          fill={COLOR_SCHEMES[(index + 0) % COLOR_SCHEMES.length].fill}
-                        />
+                        <Cell key={index} fill={COLOR_SCHEMES[(index + 0) % COLOR_SCHEMES.length].fill} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      wrapperStyle={{ fontSize: "10px", paddingTop: "4px" }}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 10px", fontSize: "11px" }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: "10px", paddingTop: "4px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
@@ -1385,21 +1465,8 @@ export default function AnalyticsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} />
                     <YAxis stroke="#9ca3af" fontSize={11} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Appointments"
-                      fill={COLOR_SCHEMES[1].fill}
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 10px", fontSize: "11px" }} />
+                    <Bar dataKey="count" name="Appointments" fill={COLOR_SCHEMES[1].fill} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>
@@ -1408,31 +1475,10 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={todayTimeData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="name"
-                      stroke="#9ca3af"
-                      fontSize={8}
-                      interval={0}
-                      angle={-30}
-                      textAnchor="end"
-                      height={80}
-                    />
+                    <XAxis dataKey="name" stroke="#9ca3af" fontSize={8} interval={0} angle={-30} textAnchor="end" height={80} />
                     <YAxis stroke="#9ca3af" fontSize={11} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Appointments"
-                      fill={COLOR_SCHEMES[2].fill}
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 10px", fontSize: "11px" }} />
+                    <Bar dataKey="count" name="Appointments" fill={COLOR_SCHEMES[2].fill} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </SimpleChartCard>

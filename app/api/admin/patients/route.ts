@@ -91,6 +91,8 @@ export async function GET(_request: NextRequest) {
         email: patient.email || appt.email || null,
         phone: patient.phone || null,
         age: patient.age || null,
+        gender: patient.gender || null,
+        address: patient.address || null,
         image: null,
         createdAt: patient.createdAt.toISOString(),
         chiefComplaints: latestSoapNote?.chiefComplaint || null,

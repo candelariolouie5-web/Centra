@@ -59,6 +59,64 @@ const PROCEDURE_LABELS: Record<string, string> = {
 
 const FOLLOW_UP_MARKER = "Follow-up appointment:";
 
+/* ============================================================
+   IMAGE COMPRESSION UTILITY - Phase 1
+   ============================================================ */
+const compressImage = (
+  dataUrl: string,
+  maxWidth: number = 500,
+  maxHeight: number = 400,
+  quality: number = 0.5
+): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Maintain aspect ratio while resizing
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+        const ctx = canvas.getContext("2d");
+
+        if (ctx) {
+          // Use better image smoothing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          // Convert to JPEG with quality setting
+          const compressed = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressed);
+        } else {
+          resolve(dataUrl);
+        }
+      } catch (error) {
+        console.warn("[COMPRESS] Canvas error, using original:", error);
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => {
+      console.warn("[COMPRESS] Image load error, using original");
+      resolve(dataUrl);
+    };
+    img.src = dataUrl;
+  });
+};
+
+/* ============================================================ */
+
 function TextAreaField({
   id,
   label,
@@ -333,6 +391,11 @@ const SoapNoteModal = ({
   const [showPreview, setShowPreview] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // SOAP Note History States
+  const [soapNoteHistory, setSoapNoteHistory] = useState<any[]>([]);
+  const [selectedSoapNoteIndex, setSelectedSoapNoteIndex] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
   const storageKey = useMemo(
     () => `soap-note:${patient?.id ?? "temp"}`,
     [patient?.id]
@@ -364,7 +427,6 @@ const SoapNoteModal = ({
 
     const normalizedPrescriptions: Prescription[] = rawPrescriptions
       .map((rx: any) => ({
-        medicationId: rx?.medicationId ?? null,
         generic: typeof rx?.generic === "string" ? rx.generic : "",
         brandName: typeof rx?.brandName === "string" ? rx.brandName : "",
         quantity: typeof rx?.quantity === "string" ? rx.quantity : "",
@@ -409,6 +471,52 @@ const SoapNoteModal = ({
     setFollowUp((prev: string) => removeMatchingLines(prev, isFollowUpScheduleLine));
     setPlan((prev: string) => removeMatchingLines(prev, isPlanScheduleLine));
   };
+
+  // Load SOAP Note History
+  const loadSoapNoteHistory = async () => {
+    if (!patient?.id) return;
+
+    try {
+      const userRole = String(session?.user?.role || "").toUpperCase();
+      const apiPath =
+        userRole === "DOCTOR"
+          ? `/api/doctor/soap-notes?patientId=${patient.id}`
+          : `/api/admin/soap-notes?patientId=${patient.id}`;
+
+      const response = await fetch(apiPath, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const data = await safeJson(response);
+
+      if (response.ok && data.soapNotes && data.soapNotes.length > 0) {
+        setSoapNoteHistory(data.soapNotes);
+        // Load the latest one
+        hydrateFromSoapNote(data.soapNotes[0]);
+        setSelectedSoapNoteIndex(0);
+        setShowHistory(true);
+      } else {
+        setSoapNoteHistory([]);
+        setShowHistory(false);
+        resetDraftFields();
+      }
+    } catch (error) {
+      console.error("Error loading SOAP note history:", error);
+      setSoapNoteHistory([]);
+      setShowHistory(false);
+    }
+  };
+
+  // Load history when modal opens
+  useEffect(() => {
+    if (open && patient?.id && status !== "loading") {
+      const userRole = String(session?.user?.role || "").toUpperCase();
+      if (userRole === "ADMIN" || userRole === "DOCTOR") {
+        loadSoapNoteHistory();
+      }
+    }
+  }, [open, patient?.id, session?.user?.role, status]);
 
   useEffect(() => {
     if (!open || !patient?.id || status === "loading") return;
@@ -546,9 +654,6 @@ const SoapNoteModal = ({
 
   if (!open || !patient) return null;
 
-  // ===================================================================
-  // 🔥 HANDLER PARA SA CLINICAL FINDINGS (mula sa 3D modal)
-  // ===================================================================
   const handleSaveFinding = async (data: {
     diagnosis: string;
     anatomy: string;
@@ -558,7 +663,6 @@ const SoapNoteModal = ({
     console.log("🔵 patient.id:", patient.id);
 
     try {
-      // Check if patient has a valid ID
       if (!patient.id || patient.id === "temp") {
         console.warn("❌ Clinical finding not saved - missing patient ID", data);
         alert("Cannot save clinical finding: Patient ID is missing. Please ensure the patient has a valid ID.");
@@ -573,7 +677,6 @@ const SoapNoteModal = ({
       };
       console.log("📤 Sending payload to API:", payload);
 
-      // 1. I-save sa clinical_findings database
       const res = await fetch("/api/clinical-findings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -593,7 +696,6 @@ const SoapNoteModal = ({
       console.log("✅ Clinical finding saved successfully:", result);
       alert("✅ Clinical finding saved successfully!");
 
-      // 2. I-update pa rin ang diagnosis field gaya ng dati
       const newEntry = `${data.diagnosis} (${data.anatomy}) – ${data.notes}`;
       setDiagnosis((prev) => (prev ? `${prev}; ${newEntry}` : newEntry));
     } catch (error) {
@@ -635,15 +737,31 @@ const SoapNoteModal = ({
     }
   };
 
+  /* ============================================================
+     MODIFIED: handleSaveNote with compression
+     ============================================================ */
   const handleSaveNote = async () => {
     setError(null);
 
     try {
-      const diagnosticImages = diagnostics
-        .map((item) =>
-          typeof item?.imageData === "string" ? item.imageData.trim() : ""
-        )
-        .filter((item) => item.length > 0);
+      // Compress all diagnostic images before saving
+      const compressedDiagnosticImages = await Promise.all(
+        diagnostics.map(async (item) => {
+          if (typeof item?.imageData === "string" && item.imageData.trim()) {
+            try {
+              // Compress to 500x400 at 50% quality
+              const compressed = await compressImage(item.imageData, 500, 400, 0.5);
+              return compressed;
+            } catch (err) {
+              console.warn("Failed to compress image, using original:", err);
+              return item.imageData.trim();
+            }
+          }
+          return "";
+        })
+      );
+
+      const diagnosticImages = compressedDiagnosticImages.filter((item) => item.length > 0);
 
       const payload = {
         patientId: patient.id,
@@ -699,12 +817,45 @@ const SoapNoteModal = ({
         );
       }
 
+      // Refresh history after saving
+      await loadSoapNoteHistory();
+
       onSaved?.();
       onClose();
     } catch (error: any) {
       console.error("[SOAP-SAVE-CATCH]", error);
       setError(`Network error: ${error?.message || "Unknown error"}`);
       alert("Network error - please check connection and try again");
+    }
+  };
+
+  /* ============================================================
+     MODIFIED: handleSaveDiagnostic with compression
+     ============================================================ */
+  const handleSaveDiagnostic = async (diagnostic: Diagnostic) => {
+    try {
+      // Compress the image before storing in state
+      const compressedData = await compressImage(diagnostic.imageData, 500, 400, 0.5);
+
+      const compressedDiagnostic = {
+        ...diagnostic,
+        imageData: compressedData,
+      };
+
+      setDiagnostics((prev: Diagnostic[]) => [...prev, compressedDiagnostic]);
+
+      if (!diagnosis.trim()) {
+        setDiagnosis("Diagnostic findings");
+      }
+
+      console.log(
+        `✅ Diagnostic image saved. Original size: ${Math.round(diagnostic.imageData.length / 1024)}KB, ` +
+        `Compressed: ${Math.round(compressedData.length / 1024)}KB`
+      );
+    } catch (error) {
+      console.error("Failed to compress diagnostic image:", error);
+      // Fallback - save original if compression fails
+      setDiagnostics((prev: Diagnostic[]) => [...prev, diagnostic]);
     }
   };
 
@@ -729,13 +880,6 @@ const SoapNoteModal = ({
 
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
     pdf.save(`SOAP_Report_${patient.name}.pdf`);
-  };
-
-  const handleSaveDiagnostic = (diagnostic: Diagnostic) => {
-    setDiagnostics((prev: Diagnostic[]) => [...prev, diagnostic]);
-    if (!diagnosis.trim()) {
-      setDiagnosis("Diagnostic findings");
-    }
   };
 
   const handleRoomSelect = (room: RoomType) => {
@@ -864,6 +1008,50 @@ const SoapNoteModal = ({
               {selectedRoomLabel ?? "Auto-assign room"}
             </p>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render SOAP Note History
+  const renderSoapNoteHistory = () => {
+    if (!showHistory || soapNoteHistory.length === 0) return null;
+
+    return (
+      <div className="mb-4">
+        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2">
+          Consultation History ({soapNoteHistory.length})
+        </label>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {soapNoteHistory.map((note, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                hydrateFromSoapNote(note);
+                setSelectedSoapNoteIndex(index);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition ${
+                selectedSoapNoteIndex === index
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {new Date(note.createdAt).toLocaleDateString('en-PH', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+              <span className="ml-1 text-[10px] opacity-70">
+                {new Date(note.createdAt).toLocaleTimeString('en-PH', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="text-[10px] text-slate-400 mt-1">
+          Click a date to view that consultation
         </div>
       </div>
     );
@@ -1076,6 +1264,9 @@ const SoapNoteModal = ({
             <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="overflow-y-auto p-4 sm:p-6">
                 <div className="space-y-6">
+                  {/* SOAP Note History Section */}
+                  {renderSoapNoteHistory()}
+
                   <SectionCard
                     title="Subjective"
                     accent="bg-violet-500"

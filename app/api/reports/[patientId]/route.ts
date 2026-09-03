@@ -101,14 +101,12 @@ export async function GET(
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
+    // FIXED: Removed 'medication' from include
     const latestSoapNote = await prisma.soapNote.findFirst({
       where: { patientId: resolvedPatientId },
       orderBy: { createdAt: "desc" },
       include: {
         prescriptionsList: {
-          include: {
-            medication: true,
-          },
           orderBy: { createdAt: "asc" },
         },
       },

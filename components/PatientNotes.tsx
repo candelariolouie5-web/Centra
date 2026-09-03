@@ -1,8 +1,8 @@
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import SoapNoteModal from "./soapnotemodal";
 
 type Prescription = {
   id?: string;
@@ -12,6 +12,20 @@ type Prescription = {
   quantity?: string | null;
   dosage?: string | null;
   instructions?: string | null;
+};
+
+type RawPrescription = {
+  id?: string;
+  medicationId?: string | null;
+  generic?: string;
+  drug?: string;
+  brandName?: string;
+  quantity?: string;
+  dosage?: string;
+  dose?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
 };
 
 type SoapNote = {
@@ -25,6 +39,7 @@ type SoapNote = {
   imageData?: string | null;
   diagnosticImages?: string[];
   prescriptions?: Prescription[];
+  createdAt?: string;
 };
 
 function getPrescriptionTitle(rx: Prescription) {
@@ -59,7 +74,7 @@ function normalizeSoapNote(note: any): SoapNote | null {
       : [];
 
   const prescriptions: Prescription[] = rawPrescriptions
-    .map((rx: any) => ({
+    .map((rx: RawPrescription) => ({
       id: rx?.id,
       medicationId: rx?.medicationId ?? null,
       generic: safeText(rx?.generic || rx?.drug),
@@ -93,6 +108,7 @@ function normalizeSoapNote(note: any): SoapNote | null {
           ? [fallbackImage]
           : [],
     prescriptions,
+    createdAt: note?.createdAt,
   };
 }
 
@@ -107,22 +123,24 @@ async function safeJson(res: Response) {
 const PatientNotes = ({ patient }: any) => {
   const { data: session, status } = useSession();
 
-  const [soapNote, setSoapNote] = useState<SoapNote | null>(
-    normalizeSoapNote(patient?.soapNote)
-  );
+  const [soapNotes, setSoapNotes] = useState<SoapNote[]>([]);
+  const [selectedSoapNote, setSelectedSoapNote] = useState<SoapNote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isSoapModalOpen, setIsSoapModalOpen] = useState(false);
 
   const patientId = patient?.id;
 
-  const fetchLatestSoapNote = useCallback(async () => {
+  const fetchSoapNotes = useCallback(async () => {
     if (!patientId || status === "loading") return;
 
     const role = String(session?.user?.role || "").toUpperCase();
 
     if (role !== "ADMIN" && role !== "DOCTOR") {
-      setSoapNote(normalizeSoapNote(patient?.soapNote));
+      const note = normalizeSoapNote(patient?.soapNote);
+      setSoapNotes(note ? [note] : []);
+      setSelectedSoapNote(note);
       return;
     }
 
@@ -139,38 +157,45 @@ const PatientNotes = ({ patient }: any) => {
       const data = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to load SOAP note");
+        throw new Error(data?.error || "Failed to load SOAP notes");
       }
 
-      const latest = Array.isArray(data?.soapNotes) ? data.soapNotes[0] : null;
+      const notes = Array.isArray(data?.soapNotes) ? data.soapNotes : [];
+      const normalizedNotes = notes.map(normalizeSoapNote).filter(Boolean) as SoapNote[];
 
-      if (latest) {
-        setSoapNote(normalizeSoapNote(latest));
+      setSoapNotes(normalizedNotes);
+
+      if (normalizedNotes.length > 0) {
+        setSelectedSoapNote(normalizedNotes[0]);
       } else {
-        setSoapNote(normalizeSoapNote(patient?.soapNote));
+        const fallback = normalizeSoapNote(patient?.soapNote);
+        setSelectedSoapNote(fallback);
+        if (fallback) {
+          setSoapNotes([fallback]);
+        }
       }
     } catch (err) {
       console.error("[PATIENT-NOTES-FETCH-ERROR]", err);
-      setError(err instanceof Error ? err.message : "Failed to load SOAP note");
-      setSoapNote(normalizeSoapNote(patient?.soapNote));
+      setError(err instanceof Error ? err.message : "Failed to load SOAP notes");
+      const fallback = normalizeSoapNote(patient?.soapNote);
+      setSelectedSoapNote(fallback);
+      if (fallback) {
+        setSoapNotes([fallback]);
+      }
     } finally {
       setLoading(false);
     }
   }, [patientId, patient?.soapNote, session?.user?.role, status]);
 
   useEffect(() => {
-    setSoapNote(normalizeSoapNote(patient?.soapNote));
-  }, [patient?.soapNote, patientId]);
-
-  useEffect(() => {
-    void fetchLatestSoapNote();
-  }, [fetchLatestSoapNote]);
+    void fetchSoapNotes();
+  }, [fetchSoapNotes]);
 
   useEffect(() => {
     const handleSoapSaved = (event: Event) => {
       const customEvent = event as CustomEvent<{ patientId?: string }>;
       if (customEvent.detail?.patientId === patientId) {
-        void fetchLatestSoapNote();
+        void fetchSoapNotes();
       }
     };
 
@@ -181,114 +206,235 @@ const PatientNotes = ({ patient }: any) => {
         handleSoapSaved as EventListener
       );
     };
-  }, [fetchLatestSoapNote, patientId]);
+  }, [fetchSoapNotes, patientId]);
+
+  const handleSoapNoteSaved = () => {
+    void fetchSoapNotes();
+  };
+
+  const renderPrescriptions = (prescriptions?: Prescription[]) => {
+    if (!prescriptions || prescriptions.length === 0) return null;
+
+    return (
+      <div className="mt-3 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Prescriptions
+        </p>
+        {prescriptions.map((rx, idx) => (
+          <div
+            key={rx.id || idx}
+            className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3"
+          >
+            <p className="text-sm font-semibold text-amber-900">
+              {getPrescriptionTitle(rx)}
+            </p>
+            {!!getPrescriptionMeta(rx) && (
+              <p className="text-xs text-amber-700">
+                {getPrescriptionMeta(rx)}
+              </p>
+            )}
+            {rx.instructions?.trim() && (
+              <p className="mt-1 text-xs text-amber-800">{rx.instructions}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDiagnosticImages = (diagnosticImages?: string[]) => {
+    if (!diagnosticImages || diagnosticImages.length === 0) return null;
+
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 mt-2">
+        {diagnosticImages.map((image, index) => (
+          <button
+            key={`${index}-${image.slice(0, 20)}`}
+            type="button"
+            onClick={() => setPreviewImage(image)}
+            className="block w-full rounded-lg border border-gray-200 bg-gray-50 p-2 text-left transition hover:border-cyan-400 hover:shadow-sm"
+          >
+            <img
+              src={image}
+              alt={`Diagnostic image ${index + 1}`}
+              className="mx-auto block max-h-48 w-full rounded object-contain shadow-sm"
+            />
+            <p className="mt-2 text-xs text-gray-500">Click to preview</p>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderSoapNoteCard = (note: SoapNote, index: number) => {
+    const isSelected = selectedSoapNote?.id === note.id;
+
+    return (
+      <div
+        key={note.id || index}
+        className={`rounded-xl border transition cursor-pointer ${
+          isSelected
+            ? "border-cyan-400 bg-cyan-50/70 ring-2 ring-cyan-200"
+            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+        }`}
+        onClick={() => setSelectedSoapNote(note)}
+      >
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                {index + 1}
+              </span>
+              <span className="text-sm font-semibold text-slate-700">
+                {note.createdAt
+                  ? new Date(note.createdAt).toLocaleDateString("en-PH", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "Date unknown"}
+              </span>
+              {note.createdAt && (
+                <span className="text-xs text-slate-400">
+                  {new Date(note.createdAt).toLocaleTimeString("en-PH", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
+            {note.chiefComplaint && (
+              <span className="text-xs text-slate-500 truncate max-w-[200px]">
+                {note.chiefComplaint}
+              </span>
+            )}
+          </div>
+
+          {isSelected && (
+            <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+              {note.chiefComplaint && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Chief Complaint
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.chiefComplaint}
+                  </p>
+                </div>
+              )}
+
+              {note.historyOfIllness && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    History of Present Illness
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.historyOfIllness}
+                  </p>
+                </div>
+              )}
+
+              {note.remarks && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Remarks
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.remarks}
+                  </p>
+                </div>
+              )}
+
+              {note.diagnosis && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Diagnosis
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.diagnosis}
+                  </p>
+                  {renderDiagnosticImages(note.diagnosticImages)}
+                </div>
+              )}
+
+              {note.plan && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Plan
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.plan}
+                  </p>
+                </div>
+              )}
+
+              {note.followUp && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Follow-up
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {note.followUp}
+                  </p>
+                </div>
+              )}
+
+              {renderPrescriptions(note.prescriptions)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
-      <div>
-        <div className="px-4 sm:px-0">
-          <h3 className="text-base font-semibold text-black">Patient Notes</h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Additional information, prescriptions, and attachments.
-          </p>
-          {loading && (
-            <p className="mt-2 text-xs text-blue-600">Loading latest SOAP note...</p>
-          )}
-          {!!error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      <div className="space-y-4">
+        {/* Header with Add Button */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-700">
+              {soapNotes.length > 0
+                ? `${soapNotes.length} consultation(s) recorded`
+                : "No consultations recorded yet"}
+            </p>
+            {loading && (
+              <p className="mt-1 text-xs text-blue-600">Loading consultations...</p>
+            )}
+            {!!error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+          </div>
+      
         </div>
 
-        <div className="mt-6 border-t border-gray-200">
-          <dl className="divide-y divide-gray-200">
-            <div className="grid grid-cols-3 gap-4 px-4 py-6">
-              <dt className="text-sm font-medium text-gray-600">Chief Complaint</dt>
-              <dd className="col-span-2 whitespace-pre-wrap text-sm text-gray-800">
-                {soapNote?.chiefComplaint || "—"}
-              </dd>
-            </div>
+        {/* Loading State */}
+        {loading && soapNotes.length === 0 && (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+            <span className="ml-3 text-sm text-slate-500">Loading consultations...</span>
+          </div>
+        )}
 
-            <div className="grid grid-cols-3 gap-4 px-4 py-6">
-              <dt className="text-sm font-medium text-gray-600">
-                History of Present Illness
-              </dt>
-              <dd className="col-span-2 whitespace-pre-wrap text-sm text-gray-800">
-                {soapNote?.historyOfIllness || "—"}
-              </dd>
-            </div>
+        {/* No Notes State */}
+        {!loading && !error && soapNotes.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center">
+            <p className="text-sm text-slate-500">
+              No SOAP notes found for this patient.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Click the "Add SOAP Note" button to create the first consultation record.
+            </p>
+          </div>
+        )}
 
-            <div className="grid grid-cols-3 gap-4 px-4 py-6">
-              <dt className="text-sm font-medium text-gray-600">Remarks</dt>
-              <dd className="col-span-2 whitespace-pre-wrap text-sm text-gray-800">
-                {soapNote?.remarks || "—"}
-              </dd>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 px-4 py-6">
-              <dt className="text-sm font-medium text-gray-600">Diagnosis</dt>
-              <dd className="col-span-2 space-y-3 text-sm text-gray-800">
-                <p className="whitespace-pre-wrap">{soapNote?.diagnosis || "—"}</p>
-
-                {soapNote?.diagnosticImages &&
-                  soapNote.diagnosticImages.length > 0 && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {soapNote.diagnosticImages.map((image, index) => (
-                        <button
-                          key={`${index}-${image.slice(0, 20)}`}
-                          type="button"
-                          onClick={() => setPreviewImage(image)}
-                          className="block w-full rounded-lg border border-gray-200 bg-gray-50 p-2 text-left transition hover:border-cyan-400 hover:shadow-sm"
-                        >
-                          <img
-                            src={image}
-                            alt={`Diagnostic image ${index + 1}`}
-                            className="mx-auto block max-h-48 w-full rounded object-contain shadow-sm"
-                          />
-                          <p className="mt-2 text-xs text-gray-500">
-                            Click to preview
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-              </dd>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 px-4 py-6">
-              <dt className="text-sm font-medium text-gray-600">Prescriptions</dt>
-              <dd className="col-span-2">
-                {soapNote?.prescriptions && soapNote.prescriptions.length > 0 ? (
-                  <div className="space-y-3">
-                    {soapNote.prescriptions.map((rx, index) => (
-                      <div
-                        key={rx.id || index}
-                        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
-                      >
-                        <p className="font-semibold text-amber-900">
-                          {getPrescriptionTitle(rx)}
-                        </p>
-
-                        {!!getPrescriptionMeta(rx) && (
-                          <p className="mt-1 text-sm text-amber-800">
-                            {getPrescriptionMeta(rx)}
-                          </p>
-                        )}
-
-                        {!!rx.instructions?.trim() && (
-                          <p className="mt-1 text-sm text-amber-700">
-                            {rx.instructions}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-800">—</p>
-                )}
-              </dd>
-            </div>
-          </dl>
-        </div>
+        {/* SOAP Notes List */}
+        {!loading && soapNotes.length > 0 && (
+          <div className="space-y-3">
+            {soapNotes.map((note, index) => renderSoapNoteCard(note, index))}
+          </div>
+        )}
       </div>
 
+      {/* Image Preview Modal */}
       {previewImage && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
@@ -316,6 +462,17 @@ const PatientNotes = ({ patient }: any) => {
           </div>
         </div>
       )}
+
+      {/* SOAP Note Modal */}
+      <SoapNoteModal
+        open={isSoapModalOpen}
+        onClose={() => {
+          setIsSoapModalOpen(false);
+          handleSoapNoteSaved();
+        }}
+        patient={patient}
+        onSaved={handleSoapNoteSaved}
+      />
     </>
   );
 };

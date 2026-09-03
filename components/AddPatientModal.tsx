@@ -1,18 +1,66 @@
 "use client";
 
-import { useState } from "react";
-import { FieldBlock } from "./UIHelpers";
+import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import {
   UserRound,
-  ShieldAlert,
-  Stethoscope,
-  FileCheck2,
-  X,
+  ChevronLeft,
   ChevronRight,
+  Check,
+  Loader2,
+  X,
 } from "lucide-react";
 
-/* ----------------------- ADD PATIENT MODAL ----------------------- */
-const AddPatientModal = ({
+type ServiceType = "ear" | "nose" | "throat" | "aesthetics";
+
+const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const clinicHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+
+function startOfWeek(date: Date) {
+  const day = date.getDay();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() - day);
+}
+function getWeekDays(start: Date): Date[] {
+  return Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function formatTime(hour: number): string {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+function formatDisplayTime(hour: number) {
+  return `${hour % 12 === 0 ? "12" : hour % 12}:00 ${hour >= 12 ? "PM" : "AM"}`;
+}
+function isSunday(date: Date) {
+  return date.getDay() === 0;
+}
+function isPastDay(date: Date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return target < today;
+}
+function isToday(date: Date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() === today.getTime();
+}
+function getSlotKey(date: string, time: string) {
+  return `${date}-${time}`;
+}
+
+export default function AddPatientModal({
   open,
   onClose,
   onSuccess,
@@ -20,133 +68,212 @@ const AddPatientModal = ({
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-}) => {
-  const [tab, setTab] = useState("personal");
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
+}) {
+  const { data: session } = useSession();
+  const providerId = session?.user?.id;
+  const providerRole = session?.user?.role;
+
+  const [step, setStep] = useState<"patient" | "calendar" | "confirm">("patient");
+
+  const [form, setForm] = useState({
+    name: "",
     age: "",
     gender: "",
-    phone: "",
-    address: "",
-    emergencyName: "",
-    emergencyRelationship: "",
-    emergencyPhone: "",
-    emergencyAltPhone: "",
-    physicianName: "",
-    physicianClinic: "",
-    physicianPhone: "",
-    physicianEmail: "",
-    consent: "",
-    consentChecked: false,
+    contactNumber: "",
+    birthdate: "",
   });
+  const [serviceType, setServiceType] = useState<ServiceType>("ear");
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const [loading, setLoading] = useState(false);
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
+  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
+  const [availabilityMap, setAvailabilityMap] = useState<Record<string, any>>({});
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [isBooking, setIsBooking] = useState(false);
 
-  const tabs = [
-    {
-      id: "personal",
-      label: "Personal Information",
-      shortLabel: "Personal",
-      icon: UserRound,
-    },
-    {
-      id: "emergency",
-      label: "Emergency Contact",
-      shortLabel: "Emergency",
-      icon: ShieldAlert,
-    },
-    {
-      id: "physician",
-      label: "Physician Info",
-      shortLabel: "Physician",
-      icon: Stethoscope,
-    },
-    {
-      id: "consent",
-      label: "Patient Consent",
-      shortLabel: "Consent",
-      icon: FileCheck2,
-    },
-  ];
+  useEffect(() => {
+    if (open) {
+      setStep("patient");
+      setForm({ name: "", age: "", gender: "", contactNumber: "", birthdate: "" });
+      setSelectedDate(null);
+      setSelectedTime(null);
+      setWeekStart(startOfWeek(new Date()));
+      setFormErrors({});
+    }
+  }, [open]);
 
-  const currentTabIndex = tabs.findIndex((t) => t.id === tab);
+  useEffect(() => {
+    if (step !== "calendar" || !open || !providerId) return;
+    fetchWeekAvailability();
+  }, [step, weekStart, open, providerId]);
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const fetchWeekAvailability = async () => {
+    setLoadingSlots(true);
+    const entries: [string, any][] = [];
 
-  const validateForm = () => {
-    const errors: { [key: string]: string } = {};
+    for (const day of weekDays) {
+      for (const hour of clinicHours) {
+        const key = getSlotKey(formatDate(day), formatTime(hour));
 
-    if (!formData.fullName.trim()) errors.fullName = "Full name is required";
-    if (!formData.email.trim()) errors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      errors.email = "Email is invalid";
-    if (!formData.age.trim()) errors.age = "Age is required";
-    if (!formData.gender.trim()) errors.gender = "Gender is required";
-    if (!formData.phone.trim()) errors.phone = "Phone number is required";
-    if (!formData.address.trim()) errors.address = "Address is required";
-    if (!formData.consentChecked) errors.consent = "You must consent to proceed";
+        if (isSunday(day) || isPastDay(day)) {
+          entries.push([
+            key,
+            { capacity: 0, occupied: 0, remaining: 0, isFull: true, reason: "Unavailable" },
+          ]);
+          continue;
+        }
 
-    return errors;
-  };
+        if (isToday(day)) {
+          const currentHour = new Date().getHours();
+          if (hour <= currentHour) {
+            entries.push([
+              key,
+              { capacity: 0, occupied: 0, remaining: 0, isFull: true, reason: "Time passed" },
+            ]);
+            continue;
+          }
+        }
 
-  const handleSave = async () => {
-    const errors = validateForm();
-    if (Object.keys(errors).length > 0) {
-      alert(
-        "Please fix the following errors:\n" + Object.values(errors).join("\n")
-      );
-      return;
+        const res = await fetch(
+          `/api/availability?date=${formatDate(day)}&time=${formatTime(hour)}&providerId=${providerId}&allowSameDay=true`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        const slot = data?.slotInfo ?? {};
+        entries.push([
+          key,
+          {
+            capacity: Number(slot.capacity ?? 0),
+            occupied: Number(slot.occupied ?? 0),
+            remaining: Number(slot.remaining ?? 0),
+            isFull: Boolean(slot.isFull ?? Number(slot.remaining ?? 0) <= 0),
+            reason: slot.reason,
+          },
+        ]);
+      }
     }
 
-    setLoading(true);
+    setAvailabilityMap(Object.fromEntries(entries));
+    setLoadingSlots(false);
+  };
+
+  const getSlotInfo = (date: Date, hour: number) => {
+    const key = getSlotKey(formatDate(date), formatTime(hour));
+    return (
+      availabilityMap[key] ?? {
+        capacity: 0,
+        occupied: 0,
+        remaining: 0,
+        isFull: true,
+        reason: "Unavailable",
+      }
+    );
+  };
+
+  const isSlotAvailable = (date: Date, hour: number) => {
+    const slot = getSlotInfo(date, hour);
+    return slot.capacity > 0 && slot.remaining > 0 && !slot.isFull;
+  };
+
+  const handleSelectSlot = (date: Date, hour: number) => {
+    if (!isSlotAvailable(date, hour)) return;
+    setSelectedDate(date);
+    setSelectedTime(formatTime(hour));
+    setStep("confirm");
+  };
+
+  const validatePatientForm = () => {
+    const errors: any = {};
+    if (!form.name.trim()) errors.name = "Name is required";
+    if (!form.age || Number(form.age) <= 0 || Number(form.age) > 999)
+      errors.age = "Invalid age";
+    if (!form.gender) errors.gender = "Gender is required";
+    if (!/^09\d{9}$/.test(form.contactNumber))
+      errors.contactNumber = "Use 09XXXXXXXXX";
+    if (!form.birthdate) errors.birthdate = "Birthdate is required";
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (validatePatientForm()) setStep("calendar");
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!selectedDate || !selectedTime || !providerId) return;
+    setIsBooking(true);
     try {
-      const response = await fetch("/api/admin/patients", {
+      const payload = {
+        name: form.name.trim(),
+        age: parseInt(form.age),
+        gender: form.gender,
+        contactNumber: form.contactNumber,
+        birthdate: form.birthdate,
+        serviceType,
+        appointmentDate: formatDate(selectedDate),
+        appointmentTime: selectedTime,
+      };
+
+      const endpoint =
+        providerRole === "ADMIN"
+          ? "/api/admin/appointments"
+          : "/api/doctor/appointments";
+
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        console.log("Patient saved successfully");
+      if (res.ok) {
         if (onSuccess) onSuccess();
         onClose();
       } else {
-        const data = await response.json();
-        alert(data.error || "Failed to save patient");
+        const data = await res.json();
+        alert(data.error || "Booking failed");
       }
     } catch (err) {
-      console.error("Error saving patient:", err);
-      alert("Something went wrong. Please try again.");
+      alert("Error booking appointment");
     } finally {
-      setLoading(false);
+      setIsBooking(false);
     }
   };
+
+  const goToToday = () => setWeekStart(startOfWeek(new Date()));
+  const prevWeek = () =>
+    setWeekStart(
+      new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() - 7)
+    );
+  const nextWeek = () =>
+    setWeekStart(
+      new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7)
+    );
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_90px_-25px_rgba(15,23,42,0.35)]">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_90px_-25px_rgba(15,23,42,0.35)]">
         {/* Header */}
         <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex items-start justify-between gap-4 px-6 py-5 md:px-8">
             <div>
               <div className="mb-2 inline-flex items-center rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-                New Patient Registration
+                Walk-in Patient Booking
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                Add New Patient
+                {step === "patient"
+                  ? "Patient Details"
+                  : step === "calendar"
+                  ? "Select Schedule"
+                  : "Confirm Booking"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Complete the patient record details before saving.
+                {providerRole === "ADMIN" ? "Booking as Admin" : "Booking as Doctor"}
               </p>
             </div>
-
             <button
               onClick={onClose}
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
@@ -154,283 +281,254 @@ const AddPatientModal = ({
               <X className="h-5 w-5" />
             </button>
           </div>
-
-          {/* Progress/Tabs */}
-          <div className="px-6 pb-5 md:px-8">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {tabs.map((t, index) => {
-                const Icon = t.icon;
-                const isActive = tab === t.id;
-                const isDone = currentTabIndex > index;
-
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`group rounded-2xl border px-4 py-3 text-left transition ${
-                      isActive
-                        ? "border-violet-200 bg-violet-50 shadow-sm"
-                        : isDone
-                        ? "border-emerald-200 bg-emerald-50/70"
-                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                          isActive
-                            ? "bg-violet-600 text-white"
-                            : isDone
-                            ? "bg-emerald-600 text-white"
-                            : "bg-white text-slate-500"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
-                          Step {index + 1}
-                        </p>
-                        <p
-                          className={`truncate text-sm font-semibold ${
-                            isActive
-                              ? "text-violet-700"
-                              : isDone
-                              ? "text-emerald-700"
-                              : "text-slate-700"
-                          }`}
-                        >
-                          {t.shortLabel}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto bg-slate-50">
+        {/* Content */}
+        <div className="max-h-[calc(92vh-140px)] overflow-y-auto bg-slate-50">
           <div className="px-6 py-6 md:px-8">
-            <div className="mb-6 rounded-3xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-600 p-6 text-white shadow-lg">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
-                {tabs[currentTabIndex]?.label}
-              </p>
-              <h3 className="mt-2 text-xl font-bold">
-                {tab === "personal" && "Enter the patient’s basic information"}
-                {tab === "emergency" && "Add emergency contact details"}
-                {tab === "physician" && "Record physician and clinic information"}
-                {tab === "consent" && "Confirm consent and additional notes"}
-              </h3>
-              <p className="mt-2 max-w-2xl text-sm text-white/85">
-                {tab === "personal" &&
-                  "Provide the main patient identity and contact information required for the record."}
-                {tab === "emergency" &&
-                  "Include who should be contacted immediately when urgent assistance is needed."}
-                {tab === "physician" &&
-                  "Add the patient’s attending physician details for better clinical reference."}
-                {tab === "consent" &&
-                  "Review the consent details and confirm before saving the patient record."}
-              </p>
-            </div>
-
-            {tab === "personal" && (
+            {step === "patient" && (
               <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5">
-                  <h4 className="text-lg font-semibold text-slate-900">
-                    Personal Information
-                  </h4>
-                  <p className="text-sm text-slate-500">
-                    Fill in the patient’s main profile and contact details.
-                  </p>
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                    <UserRound className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900">
+                      Personal Information
+                    </h4>
+                    <p className="text-sm text-slate-500">
+                      Fill in the patient's basic details for walk-in booking.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <FieldBlock
-                    label="Full Name"
-                    placeholder="Enter full name"
-                    value={formData.fullName}
-                    onChange={(e) =>
-                      handleInputChange("fullName", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Email"
-                    placeholder="Enter email address"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                  />
-                  <FieldBlock
-                    label="Age"
-                    placeholder="Enter age"
-                    value={formData.age}
-                    onChange={(e) => handleInputChange("age", e.target.value)}
-                  />
-                  <FieldBlock
-                    label="Gender"
-                    placeholder="Male/Female/Other"
-                    value={formData.gender}
-                    onChange={(e) => handleInputChange("gender", e.target.value)}
-                  />
-                  <FieldBlock
-                    label="Phone Number"
-                    placeholder="Enter phone number"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                  />
-                  <FieldBlock
-                    label="Address"
-                    placeholder="Enter address"
-                    value={formData.address}
-                    onChange={(e) =>
-                      handleInputChange("address", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {tab === "emergency" && (
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5">
-                  <h4 className="text-lg font-semibold text-slate-900">
-                    Emergency Contact
-                  </h4>
-                  <p className="text-sm text-slate-500">
-                    Add the primary person to contact in case of emergency.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <FieldBlock
-                    label="Contact Name"
-                    placeholder="Enter contact name"
-                    value={formData.emergencyName}
-                    onChange={(e) =>
-                      handleInputChange("emergencyName", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Relationship"
-                    placeholder="Relationship to patient"
-                    value={formData.emergencyRelationship}
-                    onChange={(e) =>
-                      handleInputChange("emergencyRelationship", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Phone Number"
-                    placeholder="Enter contact number"
-                    value={formData.emergencyPhone}
-                    onChange={(e) =>
-                      handleInputChange("emergencyPhone", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Alternate Phone"
-                    placeholder="Optional"
-                    value={formData.emergencyAltPhone}
-                    onChange={(e) =>
-                      handleInputChange("emergencyAltPhone", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {tab === "physician" && (
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5">
-                  <h4 className="text-lg font-semibold text-slate-900">
-                    Physician Information
-                  </h4>
-                  <p className="text-sm text-slate-500">
-                    Add the patient’s clinic and attending physician details.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <FieldBlock
-                    label="Primary Physician"
-                    placeholder="Physician name"
-                    value={formData.physicianName}
-                    onChange={(e) =>
-                      handleInputChange("physicianName", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Clinic/Hospital"
-                    placeholder="Clinic or hospital"
-                    value={formData.physicianClinic}
-                    onChange={(e) =>
-                      handleInputChange("physicianClinic", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Phone Number"
-                    placeholder="Physician phone"
-                    value={formData.physicianPhone}
-                    onChange={(e) =>
-                      handleInputChange("physicianPhone", e.target.value)
-                    }
-                  />
-                  <FieldBlock
-                    label="Email"
-                    placeholder="Physician email"
-                    value={formData.physicianEmail}
-                    onChange={(e) =>
-                      handleInputChange("physicianEmail", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {tab === "consent" && (
-              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-5">
-                  <h4 className="text-lg font-semibold text-slate-900">
-                    Patient Consent
-                  </h4>
-                  <p className="text-sm text-slate-500">
-                    Record notes or consent details, then confirm agreement.
-                  </p>
-                </div>
-
-                <div className="space-y-5">
-                  <FieldBlock
-                    label="Consent Form"
-                    placeholder="Type patient consent or notes here..."
-                    type="textarea"
-                    value={formData.consent}
-                    onChange={(e) =>
-                      handleInputChange("consent", e.target.value)
-                    }
-                  />
-
-                  <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
-                    <label className="flex cursor-pointer items-start gap-3">
-                      <input
-                        type="checkbox"
-                        id="consent"
-                        checked={formData.consentChecked}
-                        onChange={(e) =>
-                          handleInputChange("consentChecked", e.target.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-slate-300 accent-violet-600"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          Confirm patient consent
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          I hereby consent to the treatment and data collection.
-                        </p>
-                      </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Full Name
                     </label>
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      placeholder="e.g. Juan Dela Cruz"
+                    />
+                    {formErrors.name && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Age
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="999"
+                      value={form.age}
+                      onChange={(e) => setForm({ ...form, age: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      placeholder="Age"
+                    />
+                    {formErrors.age && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.age}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Gender
+                    </label>
+                    <select
+                      value={form.gender}
+                      onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    {formErrors.gender && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.gender}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Contact Number
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={11}
+                      value={form.contactNumber}
+                      onChange={(e) =>
+                        setForm({ ...form, contactNumber: e.target.value.replace(/\D/g, "") })
+                      }
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      placeholder="09XXXXXXXXX"
+                    />
+                    {formErrors.contactNumber && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.contactNumber}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Birthdate
+                    </label>
+                    <input
+                      type="date"
+                      value={form.birthdate}
+                      onChange={(e) => setForm({ ...form, birthdate: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    />
+                    {formErrors.birthdate && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.birthdate}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                      Service
+                    </label>
+                    <select
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                    >
+                      <option value="ear">Ear</option>
+                      <option value="nose">Nose</option>
+                      <option value="throat">Throat</option>
+                      <option value="aesthetics">Aesthetics</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === "calendar" && (
+              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={goToToday}
+                      className="rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={prevWeek}
+                      className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      onClick={nextWeek}
+                      className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  <span className="text-sm text-slate-500">Same-day booking allowed</span>
+                </div>
+                {loadingSlots ? (
+                  <div className="py-16 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Loading slots...
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <div className="grid min-w-[900px] grid-cols-8">
+                      <div className="border-r border-slate-200 bg-slate-50">
+                        <div className="h-12 flex items-center justify-center border-b border-slate-200 text-xs font-semibold">
+                          Time
+                        </div>
+                        {clinicHours.map((hour) => (
+                          <div
+                            key={hour}
+                            className="h-14 flex items-center justify-end border-b border-slate-100 pr-2 text-xs text-slate-500"
+                          >
+                            {formatDisplayTime(hour)}
+                          </div>
+                        ))}
+                      </div>
+                      {weekDays.map((day) => (
+                        <div
+                          key={day.toISOString()}
+                          className="border-r border-slate-200 last:border-r-0"
+                        >
+                          <div className="h-12 flex flex-col items-center justify-center border-b border-slate-200 bg-slate-50 text-xs font-semibold">
+                            <span>
+                              {days[day.getDay()]} {day.getDate()}
+                            </span>
+                            {isToday(day) && (
+                              <span className="text-[10px] text-amber-600">Today</span>
+                            )}
+                          </div>
+                          {clinicHours.map((hour) => {
+                            const available = isSlotAvailable(day, hour);
+                            return (
+                              <button
+                                key={hour}
+                                onClick={() => handleSelectSlot(day, hour)}
+                                disabled={!available}
+                                className={`h-14 w-full text-sm font-medium border-b border-slate-100 transition ${
+                                  available
+                                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                    : "bg-slate-50 text-slate-300 cursor-not-allowed"
+                                }`}
+                              >
+                                {formatDisplayTime(hour)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === "confirm" && selectedDate && selectedTime && (
+              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                    <Check className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900">
+                      Confirm Walk-in Booking
+                    </h4>
+                    <p className="text-sm text-slate-500">
+                      Review the patient and schedule details before booking.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-500">Patient</p>
+                      <p className="font-semibold">{form.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Age</p>
+                      <p className="font-semibold">{form.age}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Contact</p>
+                      <p className="font-semibold">{form.contactNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Service</p>
+                      <p className="font-semibold capitalize">{serviceType}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Date</p>
+                      <p className="font-semibold">{selectedDate.toDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Time</p>
+                      <p className="font-semibold">{selectedTime}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -442,13 +540,10 @@ const AddPatientModal = ({
         <div className="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur md:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
-              Step{" "}
-              <span className="font-semibold text-slate-800">
-                {currentTabIndex + 1}
-              </span>{" "}
-              of <span className="font-semibold text-slate-800">{tabs.length}</span>
+              {step === "patient" && "Step 1 of 3: Patient Details"}
+              {step === "calendar" && "Step 2 of 3: Select Schedule"}
+              {step === "confirm" && "Step 3 of 3: Confirm Booking"}
             </p>
-
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={onClose}
@@ -457,20 +552,59 @@ const AddPatientModal = ({
                 Cancel
               </button>
 
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Saving..." : "Save Patient"}
-                {!loading && <ChevronRight className="h-4 w-4" />}
-              </button>
+              {step === "patient" && (
+                <button
+                  onClick={handleNext}
+                  className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700"
+                >
+                  Continue to Calendar
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+
+              {step === "calendar" && (
+                <button
+                  onClick={() => setStep("patient")}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </button>
+              )}
+
+              {step === "confirm" && (
+                <>
+                  <button
+                    onClick={() => setStep("calendar")}
+                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleConfirmBooking}
+                    disabled={isBooking}
+                    className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg ${
+                      isBooking
+                        ? "bg-slate-400 cursor-not-allowed"
+                        : "bg-emerald-600 hover:bg-emerald-700"
+                    }`}
+                  >
+                    {isBooking ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Booking...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" /> Confirm Booking
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default AddPatientModal;
+}
