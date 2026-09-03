@@ -46,14 +46,14 @@ export async function GET() {
       ORDER BY month ASC
     `;
 
-    const monthlyTrend = monthlyTrendRaw.map((row) => ({
+    const monthlyTrend = monthlyTrendRaw.map((row: any) => ({
       month: row.month.toLocaleString("en-US", { month: "short", year: "numeric" }),
       count: Number(row.count),
     }));
 
     return NextResponse.json({
       totalPrescriptions,
-      topMeds: topMeds.map((item) => ({
+      topMeds: topMeds.map((item: any) => ({
         name: item.generic,
         count: item._count.generic,
       })),

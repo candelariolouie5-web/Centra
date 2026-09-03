@@ -300,7 +300,7 @@ export async function GET() {
       : [];
 
     const doctorNameMap = new Map(
-      doctors.map((doctor) => [
+      doctors.map((doctor: any) => [
         doctor.id,
         doctor.name || doctor.email || "Assigned Doctor",
       ])
@@ -400,7 +400,7 @@ export async function GET() {
 
       bookingOutcomeBreakdown,
 
-      statusBreakdown: bookingOutcomeBreakdown.map((item) => ({
+      statusBreakdown: bookingOutcomeBreakdown.map((item: any) => ({
         status: item.outcome,
         count: item.count,
         percentage: item.percentage,

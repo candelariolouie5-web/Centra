@@ -326,7 +326,7 @@ export async function canDeactivateDoctor(
   });
 
   const overloadedSlot = futureBookings.find(
-    (group) => (group._count.id ?? 0) > newCapacity
+    (group: any) => (group._count.id ?? 0) > newCapacity
   );
 
   if (overloadedSlot) {

@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     }
 
     const appointment = await prisma.$transaction(
-      async (tx) => {
+      async (tx: any) => {
         const slotInfo = await getAvailabilityForSlot(date, time, tx);
 
         if (slotInfo.remaining <= 0 || slotInfo.capacity <= 0) {

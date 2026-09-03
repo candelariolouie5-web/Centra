@@ -35,7 +35,7 @@ export async function GET() {
     }));
 
     // Also compute average age
-    const totalAge = appointments.reduce((sum, a) => sum + (a.age || 0), 0);
+    const totalAge = appointments.reduce((sum: number, a: any) => sum + (a.age || 0), 0);
     const avgAge = appointments.length > 0 ? Math.round(totalAge / appointments.length) : 0;
 
     return NextResponse.json({ ageGroups, avgAge });

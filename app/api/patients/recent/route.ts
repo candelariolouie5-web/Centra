@@ -1,4 +1,4 @@
-    import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const formatted = recentPatients.map((p) => ({
+    const formatted = recentPatients.map((p: any) => ({
       ...p,
       lastVisit: p.appointments[0]?.appointmentDate || null,
     }));

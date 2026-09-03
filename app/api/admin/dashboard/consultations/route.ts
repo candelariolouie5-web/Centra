@@ -32,7 +32,7 @@ export async function GET() {
 
     // Group by service type and count
     const serviceCounts: Record<string, number> = {};
-    appointments.forEach((appointment) => {
+    appointments.forEach((appointment: any) => {
       const service = appointment.serviceType;
       serviceCounts[service] = (serviceCounts[service] || 0) + 1;
     });

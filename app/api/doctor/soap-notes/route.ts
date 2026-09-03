@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
           : [];
 
     // ✅ ALWAYS CREATE NEW SOAP NOTE (NO UPDATE)
-    const soapNote = await prisma.$transaction(async (tx) => {
+    const soapNote = await prisma.$transaction(async (tx: any) => {
       // Create new SOAP note
       const newSoapNote = await tx.soapNote.create({
         data: {
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
       if (normalizedPrescriptions.length > 0) {
         await tx.prescription.createMany({
-          data: normalizedPrescriptions.map((rx) => ({
+          data: normalizedPrescriptions.map((rx: any) => ({
             soapNoteId: newSoapNote.id,
             generic: rx.generic,
             brandName: rx.brandName,
@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    const normalizedSoapNotes = soapNotes.map((note) => ({
+    const normalizedSoapNotes = soapNotes.map((note: any) => ({
       ...note,
       diagnosticImages:
         Array.isArray(note.diagnosticImages) && note.diagnosticImages.length > 0
@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
           : note.imageData
             ? [note.imageData]
             : [],
-      prescriptions: note.prescriptionsList.map((rx) => ({
+      prescriptions: note.prescriptionsList.map((rx: any) => ({
         id: rx.id,
         generic: rx.generic,
         brandName: rx.brandName,

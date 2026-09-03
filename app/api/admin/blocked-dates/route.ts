@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     const cancelFrom = startDay > today ? startDay : today;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const appointmentsToCancel = await tx.appointment.findMany({
         where: {
           assignedToRole: "ADMIN",
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       });
 
       await Promise.all(
-        appointmentsToCancel.map((appointment) =>
+        appointmentsToCancel.map((appointment: any) =>
           tx.appointment.update({
             where: { id: appointment.id },
             data: { status: "CANCELLED" },
